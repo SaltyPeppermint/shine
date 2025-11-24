@@ -20,6 +20,12 @@ object Reggvolution {
   //   }
   // }
 
+  var anyCounter = 0
+  def nextAny(): Int = {
+    this.anyCounter += 1
+    this.anyCounter - 1
+  }
+
   type Shift = rise.eqsat.Expr.Shift
 
   def reggvolve(expr: Expr): String =
@@ -263,8 +269,8 @@ object Reggvolution {
     ty match {
       case TypePatternVar(index)     => s"?t${index}"
       case DataTypePatternVar(index) => s"?dt${index}"
-      case TypePatternAny            => "?tAny"
-      case DataTypePatternAny        => "?dtAny"
+      case TypePatternAny            => s"?tAny${nextAny()}"
+      case DataTypePatternAny        => s"?dtAny${nextAny()}"
       case TypePatternNode(n) =>
         n match {
           case dt: DataTypeNode[_, _] =>
@@ -297,7 +303,7 @@ object Reggvolution {
   def reggvolve(n: NatPattern, s: Shift): String = {
     n match {
       case NatPatternVar(index) => s"?n${index}"
-      case NatPatternAny        => "?nAny"
+      case NatPatternAny        => s"?nAny${nextAny()}"
       case NatPatternNode(n) =>
         n match {
           case NatVar(index) => s"%${index + s._2}"
@@ -340,7 +346,7 @@ object Reggvolution {
   def reggvolve(a: AddressPattern, s: Shift): String = {
     a match {
       case AddressPatternVar(index) => s"?a${index}"
-      case AddressPatternAny        => "?aAny"
+      case AddressPatternAny        => s"?aAny${nextAny()}"
       case AddressPatternNode(n) =>
         n match {
           case AddressVar(index) => s"%${index + s._4}"
