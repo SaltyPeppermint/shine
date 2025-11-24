@@ -106,6 +106,7 @@ object Reggvolution {
     def patMkShift(s1: FlatShift, pv1: Any)(s2: FlatShift, pv2: Any)(
         applier: String
     ): String = {
+      // println(s"printing pv1 from patMkShift: ${pv1}")
       assert(s1 != s2)
       val cutoff = s1
       val shift = s2 - s1
@@ -115,6 +116,7 @@ object Reggvolution {
     def patMkShiftCheck(s1: FlatShift, pv1: Any)(s2: FlatShift, pv2: Any)(
         applier: String
     ): String = {
+      // println(s"printing pv1 from patMkShiftCheck: ${pv1}")
       assert(s1 != s2)
       val cutoff = s1
       val shift = s2 - s1
@@ -210,7 +212,7 @@ object Reggvolution {
 
   def reggvolve(pat: Pattern, s: Shift): String = {
     val e = pat.p match {
-      case PatternVar(index) => s"?e${index}"
+      case PatternVar(index) => s"?${index}"
       case PatternNode(node) =>
         node match {
           case Var(index) => s"%${index + s._1}"
@@ -290,7 +292,7 @@ object Reggvolution {
             s"(dataFun ${reggvolve(t, s2)})"
           case AddrFunType(t) =>
             val s2 = (s._1 + 1, s._2 + 1, s._3 + 1, s._4, s._5 + 1)
-            s"(addFun ${reggvolve(t, s2)})"
+            s"(addrFun ${reggvolve(t, s2)})"
           case NatToNatFunType(t) =>
             val s2 = (s._1 + 1, s._2 + 1, s._3 + 1, s._4 + 1, s._5)
             s"(natNatFun ${reggvolve(t, s2)})"
