@@ -14,42 +14,49 @@ object EGraph {
       analysisPending = Vec.empty[PendingAnalysis],
       classesByMatch = HashMap.empty,
       hashConses = HashConses.empty(),
-      clean = true,
+      clean = true
     )
 }
 
 sealed trait PendingAnalysis
-case class PendingMakeAnalysis(enode: ENode, id: EClassId, t: TypeId) extends PendingAnalysis
-case class PendingMergeAnalysis(a: EClassId, aParents: Seq[(ENode, EClassId)],
-                                b: EClassId, bParents: Seq[(ENode, EClassId)]) extends PendingAnalysis
+case class PendingMakeAnalysis(enode: ENode, id: EClassId, t: TypeId)
+    extends PendingAnalysis
+case class PendingMergeAnalysis(
+    a: EClassId,
+    aParents: Seq[(ENode, EClassId)],
+    b: EClassId,
+    bParents: Seq[(ENode, EClassId)]
+) extends PendingAnalysis
 
 class AnalysisData(var refCount: Int, val maps: Any)
 
 /** A data structure to keep track of equalities between expressions.
-  * @see [[https://docs.rs/egg/0.6.0/egg/struct.EGraph.html]]
-  * @tparam ED abstracts over expression analysis data
-  * @tparam ND abstracts over nat analysis data
-  * @tparam TD abstracts over type analysis data
+  * @see
+  *   [[https://docs.rs/egg/0.6.0/egg/struct.EGraph.html]]
+  * @tparam ED
+  *   abstracts over expression analysis data
+  * @tparam ND
+  *   abstracts over nat analysis data
+  * @tparam TD
+  *   abstracts over type analysis data
   */
 class EGraph(
-  // LinkedHashMap to maintain topological ordering according to dependencies
-  val analyses: LinkedHashMap[Analysis, AnalysisData],
-  val typeAnalyses: LinkedHashMap[TypeAnalysis, AnalysisData],
+    // LinkedHashMap to maintain topological ordering according to dependencies
+    val analyses: LinkedHashMap[Analysis, AnalysisData],
+    val typeAnalyses: LinkedHashMap[TypeAnalysis, AnalysisData],
+    var pending: Vec[(ENode, EClassId)],
+    var analysisPending: Vec[PendingAnalysis],
+    var memo: HashMap[(ENode, TypeId), EClassId],
+    var unionFind: UnionFind,
+    var classes: HashMap[EClassId, EClass],
+    var classesByMatch: HashMap[Int, HashSet[EClassId]],
+    var hashConses: HashConses,
 
-  var pending: Vec[(ENode, EClassId)],
-  var analysisPending: Vec[PendingAnalysis],
-
-  var memo: HashMap[(ENode, TypeId), EClassId],
-  var unionFind: UnionFind,
-  var classes: HashMap[EClassId, EClass],
-  var classesByMatch: HashMap[Int, HashSet[EClassId]],
-  var hashConses: HashConses,
-
-  // Whether or not reading operation are allowed on this e-graph.
-  // Mutating operations will set this to `false`, and
-  // `rebuild` will set it to `true`.
-  // Reading operations require this to be `true`.
-  var clean: Boolean,
+    // Whether or not reading operation are allowed on this e-graph.
+    // Mutating operations will set this to `false`, and
+    // `rebuild` will set it to `true`.
+    // Reading operations require this to be `true`.
+    var clean: Boolean
 ) {
   // TODO: check for dependency cycles?
   def requireAnalyses(x: (Set[Analysis], Set[TypeAnalysis])): Unit = {
@@ -91,8 +98,10 @@ class EGraph(
     depTA.foreach(requireTypeAnalysis)
 
     if (!typeAnalyses.contains(a)) {
-      val dataOfNat = HashMap.empty[NatId, a.NatData].asInstanceOf[HashMap[NatId, Any]]
-      val dataOfType = HashMap.empty[TypeId, a.TypeData].asInstanceOf[HashMap[TypeId, Any]]
+      val dataOfNat =
+        HashMap.empty[NatId, a.NatData].asInstanceOf[HashMap[NatId, Any]]
+      val dataOfType =
+        HashMap.empty[TypeId, a.TypeData].asInstanceOf[HashMap[TypeId, Any]]
       typeAnalyses(a) = new AnalysisData(0, (dataOfNat, dataOfType))
       TypeAnalysis.update(this, a)
     }
@@ -115,13 +124,17 @@ class EGraph(
     analyses(a).maps.asInstanceOf[HashMap[EClassId, a.Data]]
 
   // reserved for internal use
-  def getTypeAnalysisMaps(a: TypeAnalysis): (HashMap[NatId, a.NatData], HashMap[TypeId, a.TypeData]) =
+  def getTypeAnalysisMaps(
+      a: TypeAnalysis
+  ): (HashMap[NatId, a.NatData], HashMap[TypeId, a.TypeData]) =
     typeAnalyses(a).maps
       .asInstanceOf[(HashMap[NatId, a.NatData], HashMap[TypeId, a.TypeData])]
 
   def getAnalysis(a: Analysis): EClassId => a.Data = getAnalysisMap(a)
 
-  def getTypeAnalysis(a: TypeAnalysis): (NatId => a.NatData, TypeId => a.TypeData) =
+  def getTypeAnalysis(
+      a: TypeAnalysis
+  ): (NatId => a.NatData, TypeId => a.TypeData) =
     getTypeAnalysisMaps(a)
 
   def nodeCount(): Int =
@@ -157,11 +170,8 @@ class EGraph(
 
   def makeEmptyEClass(t: TypeId): EClassId = {
     val newId = unionFind.makeSet()
-    val newEclass = new EClass(
-      id = newId,
-      t = t,
-      nodes = Vec(),
-      parents = Vec())
+    val newEclass =
+      new EClass(id = newId, t = t, nodes = Vec(), parents = Vec())
     classes += newId -> newEclass
     newId
   }
@@ -170,11 +180,8 @@ class EGraph(
     val (enode, optec) = lookup(n, t)
     optec.getOrElse {
       val id = unionFind.makeSet()
-      val eclass = new EClass(
-        id = id,
-        t = t,
-        nodes = Vec(enode),
-        parents = Vec())
+      val eclass =
+        new EClass(id = id, t = t, nodes = Vec(enode), parents = Vec())
 
       enode.children().foreach { c =>
         this.getMut(c).parents += enode -> id
@@ -202,10 +209,15 @@ class EGraph(
   }
 
   def lookupExpr(expr: Expr): Option[EClassId] =
-    lookup(expr.node.map(
-      e => lookupExpr(e).getOrElse(return None),
-      addNat, addDataType, a => a
-    ), addType(expr.t))._2
+    lookup(
+      expr.node.map(
+        e => lookupExpr(e).getOrElse(return None),
+        addNat,
+        addDataType,
+        a => a
+      ),
+      addType(expr.t)
+    )._2
 
   def add(n: NatNode[NatId]): NatId =
     hashConses.add(n)
@@ -250,11 +262,15 @@ class EGraph(
     unionCanonicalDiff(cid1, cid2)
   }
 
-  private def unionCanonicalDiff(cid1: EClassId, cid2: EClassId): (EClassId, Boolean) = {
+  private def unionCanonicalDiff(
+      cid1: EClassId,
+      cid2: EClassId
+  ): (EClassId, Boolean) = {
     // make sure class2 has fewer parents
     val parents1 = classes(cid1).parents.size
     val parents2 = classes(cid2).parents.size
-    val (id1, id2) = if (parents1 < parents2) { (cid2, cid1) } else { (cid1, cid2) }
+    val (id1, id2) = if (parents1 < parents2) { (cid2, cid1) }
+    else { (cid1, cid2) }
     assert(id1 != id2)
 
     // make id1 the new root
@@ -267,7 +283,11 @@ class EGraph(
 
     pending ++= class2.parents
     analysisPending += PendingMergeAnalysis(
-      id1, class1.parents.toSeq, id2, class2.parents.toSeq)
+      id1,
+      class1.parents.toSeq,
+      id2,
+      class2.parents.toSeq
+    )
 
     class1.nodes ++= class2.nodes
     class1.parents ++= class2.parents
@@ -277,8 +297,7 @@ class EGraph(
     (id1, true)
   }
 
-  def rebuild(roots: Seq[EClassId],
-              filter: Predicate = NoPredicate()): Int = {
+  def rebuild(roots: Seq[EClassId], filter: Predicate = NoPredicate()): Int = {
     if (!this.clean) {
       val nUnions = processUnions()
       // val _ = rebuildClasses()
@@ -336,7 +355,13 @@ class EGraph(
   }
 
   private def rebuildClasses(): Int = {
-    import Node.{ordering, eclassIdOrdering, natIdOrdering, dataTypeIdOrdering, addressOrdering}
+    import Node.{
+      ordering,
+      eclassIdOrdering,
+      natIdOrdering,
+      dataTypeIdOrdering,
+      addressOrdering
+    }
     classesByMatch.values.foreach(ids => ids.clear())
 
     var trimmed = 0
@@ -345,8 +370,8 @@ class EGraph(
         val oldNodeCount = eclass.nodeCount()
 
         // sort nodes for optimized search
-        val sortedNodes = eclass.nodes.mapInPlace(n => n.mapChildren(findMut))
-          .sorted
+        val sortedNodes =
+          eclass.nodes.mapInPlace(n => n.mapChildren(findMut)).sorted
         // remove duplicates
         eclass.nodes.clear()
         eclass.nodes += sortedNodes.head
@@ -370,7 +395,10 @@ class EGraph(
     for (eclass <- classes.values) {
       // assumption: sorted nodes for optimized search
       def add(n: ENode): Unit =
-        classesByMatch.getOrElseUpdate(n.matchHash(), HashSet.empty) += eclass.id
+        classesByMatch.getOrElseUpdate(
+          n.matchHash(),
+          HashSet.empty
+        ) += eclass.id
 
       // eclass.nodes.foreach(add)
       eclass.nodes.headOption match {
@@ -396,7 +424,7 @@ class EGraph(
       assert(eclass.id == id)
       for (node <- eclass.nodes) {
         testMemo.get(node, eclass.t) match {
-          case None => ()
+          case None      => ()
           case Some(old) => assert(find(old) == find(id))
         }
         testMemo += (node, eclass.t) -> id
@@ -412,8 +440,7 @@ class EGraph(
   }
 
   // returns (eliminatedClasses, eliminatedNodes)
-  private def filter(predicate: Predicate,
-                     roots: Seq[EClassId]): (Int, Int) = {
+  private def filter(predicate: Predicate, roots: Seq[EClassId]): (Int, Int) = {
     assert(pending.isEmpty)
     assert(analysisPending.isEmpty)
 
@@ -445,7 +472,7 @@ class EGraph(
     if (toEliminate.isEmpty) {
       return (0, 0)
     }
-   */
+     */
 
     def eclassToEliminate(id: EClassId): Boolean =
       toEliminate(findMut(id))
@@ -462,7 +489,9 @@ class EGraph(
         for (eclass <- classes.values) {
           if (!toEliminate(eclass.id)) {
             val unreachable = !isRoot(eclass.id) &&
-              eclass.parents.forall { case (pn, pid) => eclassToEliminate(pid) || enodeToEliminate(pn) }
+              eclass.parents.forall { case (pn, pid) =>
+                eclassToEliminate(pid) || enodeToEliminate(pn)
+              }
             val deadEnd = eclass.nodes.forall(enodeToEliminate)
             if (unreachable || deadEnd) {
               assert(!isRoot(eclass.id))
@@ -500,9 +529,9 @@ class EGraph(
 
     val eliminatedClasses = originalClassCount - classCount()
     val eliminatedNodes = originalNodeCount - nodeCount()
-    println(s"filter eliminated $eliminatedClasses classes" +
-      s" and $eliminatedNodes nodes" +
-      s" in ${Seq(rt1, rt2, rt3).map(util.prettyTime).mkString(" + ")}")
+    // println(s"filter eliminated $eliminatedClasses classes" +
+    //   s" and $eliminatedNodes nodes" +
+    //   s" in ${Seq(rt1, rt2, rt3).map(util.prettyTime).mkString(" + ")}")
     (eliminatedClasses, eliminatedNodes)
   }
 }

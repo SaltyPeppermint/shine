@@ -20,7 +20,6 @@ object Runner {
     iterations = Vec(),
     stopReasons = Vec(),
     done = _ => false,
-
     iterLimit = 60,
     nodeLimit = 600_000,
     timeLimit = Duration.ofSeconds(30).toNanos,
@@ -30,19 +29,22 @@ object Runner {
   )
 }
 
-/** Facilitates searching for rewrites using an [[Egraph]].
-  * This technique is called "equality saturation" in general.
-  * @see [[https://docs.rs/egg/0.6.0/egg/struct.Runner.html]]
+/** Facilitates searching for rewrites using an [[Egraph]]. This technique is
+  * called "equality saturation" in general.
+  * @see
+  *   [[https://docs.rs/egg/0.6.0/egg/struct.Runner.html]]
   */
-class Runner(var iterations: Vec[Iteration],
-             var stopReasons: Vec[StopReason],
-             var done: Runner => Boolean,
-             var iterLimit: Int,
-             var nodeLimit: Int,
-             var timeLimit: Long,
-             var memoryLimit: Long,
-             var scheduler: Scheduler,
-             var totalRemoved: Long) {
+class Runner(
+    var iterations: Vec[Iteration],
+    var stopReasons: Vec[StopReason],
+    var done: Runner => Boolean,
+    var iterLimit: Int,
+    var nodeLimit: Int,
+    var timeLimit: Long,
+    var memoryLimit: Long,
+    var scheduler: Scheduler,
+    var totalRemoved: Long
+) {
   def iterationCount(): Int =
     iterations.size - 1
 
@@ -84,21 +86,27 @@ class Runner(var iterations: Vec[Iteration],
     val classes = iterations.last.egraphClasses
     val memo = iterations.last.memoSize
     println(s"  EGraph size: $nodes nodes, $classes classes, $memo memo")
-    def ratio(a: Double, b: Double) = f"${a/b}%.2f"
-    println(s"  Rebuilds: $nRebuilds, " +
-      s"${ratio(nRebuilds.toDouble, iterationCount().toDouble)} per iter")
-    println(s"  Total time: ${util.prettyTime(totalTime)} (" +
-      s"${ratio(searchTime.toDouble, totalTime.toDouble)} search, " +
-      s"${ratio(applyTime.toDouble, totalTime.toDouble)} apply, " +
-      s"${ratio(rebuildTime.toDouble, totalTime.toDouble)} rebuild)")
+    def ratio(a: Double, b: Double) = f"${a / b}%.2f"
+    println(
+      s"  Rebuilds: $nRebuilds, " +
+        s"${ratio(nRebuilds.toDouble, iterationCount().toDouble)} per iter"
+    )
+    println(
+      s"  Total time: ${util.prettyTime(totalTime)} (" +
+        s"${ratio(searchTime.toDouble, totalTime.toDouble)} search, " +
+        s"${ratio(applyTime.toDouble, totalTime.toDouble)} apply, " +
+        s"${ratio(rebuildTime.toDouble, totalTime.toDouble)} rebuild)"
+    )
     println(s"  Maximum Memory: ${memStats.pretty()}")
   }
 
-  def run(egraph: EGraph,
-          filter: Predicate,
-          rules: Seq[Rewrite],
-          normRules: Seq[RewriteDirected],
-          roots: Seq[EClassId]): Runner = {
+  def run(
+      egraph: EGraph,
+      filter: Predicate,
+      rules: Seq[Rewrite],
+      normRules: Seq[RewriteDirected],
+      roots: Seq[EClassId]
+  ): Runner = {
     egraph.rebuild(roots)
     egraph.requireAnalyses(filter.requiredAnalyses())
     rules.foreach(r => egraph.requireAnalyses(r.requiredAnalyses()))
@@ -120,7 +128,7 @@ class Runner(var iterations: Vec[Iteration],
     iterations += iteration0
 
     def end(): Runner = {
-      println(s"nodes removed by directed rewriting: $totalRemoved")
+      // println(s"nodes removed by directed rewriting: $totalRemoved")
       egraph.releaseAnalyses(filter.requiredAnalyses())
       rules.foreach(r => egraph.releaseAnalyses(r.requiredAnalyses()))
       normRules.foreach(r => egraph.releaseAnalyses(r.requiredAnalyses()))
@@ -135,10 +143,12 @@ class Runner(var iterations: Vec[Iteration],
       if (stopReasons.nonEmpty) { return end() }
 
       val iter = runOne(egraph, roots, filter, rules, normRules)
-      println(iter)
+      // println(iter)
 
-      if (iter.applied.isEmpty &&
-        scheduler.canSaturate(iterations.size)) {
+      if (
+        iter.applied.isEmpty &&
+        scheduler.canSaturate(iterations.size)
+      ) {
         stopReasons += Saturated
       }
 
@@ -163,11 +173,13 @@ class Runner(var iterations: Vec[Iteration],
   }
 
   // TODO: could check limits in-between searches and matches like in egg
-  private def runOne(egraph: EGraph,
-                     roots: Seq[EClassId],
-                     filter: Predicate,
-                     rules: Seq[Rewrite],
-                     normRules: Seq[RewriteDirected]): Iteration = {
+  private def runOne(
+      egraph: EGraph,
+      roots: Seq[EClassId],
+      filter: Predicate,
+      rules: Seq[Rewrite],
+      normRules: Seq[RewriteDirected]
+  ): Iteration = {
     val time0 = System.nanoTime()
     val i = iterations.size
     val shc = SubstsVM
@@ -185,7 +197,7 @@ class Runner(var iterations: Vec[Iteration],
       if (newlyApplied > 0) {
         applied.updateWith(name) {
           case Some(count) => Some(count + newlyApplied)
-          case None => Some(newlyApplied)
+          case None        => Some(newlyApplied)
         }
       }
     }
@@ -235,20 +247,22 @@ class Runner(var iterations: Vec[Iteration],
   }
 }
 
-class Iteration(val egraphNodes: Int,
-                val egraphClasses: Int,
-                val memoSize: Int,
-                // map from rule name to number of times it was newly applied
-                val applied: HashMap[String, Int],
-                val searchTime: Long,
-                val applyTime: Long,
-                val rebuildTime: Long,
-                val totalTime: Long,
-                val nRebuilds: Int,
-                val memStats: util.MemoryStats) {
+class Iteration(
+    val egraphNodes: Int,
+    val egraphClasses: Int,
+    val memoSize: Int,
+    // map from rule name to number of times it was newly applied
+    val applied: HashMap[String, Int],
+    val searchTime: Long,
+    val applyTime: Long,
+    val rebuildTime: Long,
+    val totalTime: Long,
+    val nRebuilds: Int,
+    val memStats: util.MemoryStats
+) {
   override def toString: String = {
     s"Iteration:\n" +
-    s"  #nodes: $egraphNodes, " +
+      s"  #nodes: $egraphNodes, " +
       s"#classes: $egraphClasses, " +
       s"#memo: $memoSize, " +
       s"search: ${util.prettyTime(searchTime)}, " +
@@ -256,7 +270,7 @@ class Iteration(val egraphNodes: Int,
       s"rebuild: ${util.prettyTime(rebuildTime)}, " +
       s"total: ${util.prettyTime(totalTime)}, " +
       s"#rebuilds: $nRebuilds\n" +
-    s"  applied: $applied\n" +
-    s"  memory ${memStats.pretty()}"
+      s"  applied: $applied\n" +
+      s"  memory ${memStats.pretty()}"
   }
 }

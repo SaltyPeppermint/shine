@@ -16,45 +16,53 @@ object mm {
     import rise.core.primitives._
 
     depFun((m: Nat, n: Nat, k: Nat) =>
-    fun(ArrayType(m, ArrayType(k, f32)))(a =>
-    fun(ArrayType(k, ArrayType(n, f32)))(b =>
-      a |> map(fun(ak =>
-        transpose(b) |> map(fun(bk =>
-          zip(ak)(bk) |>
-          map(fun(x => fst(x) * snd(x))) |>
-          reduce(add)(lf32(0.0f))
-        ))
-      ))
-    )))
+      fun(ArrayType(m, ArrayType(k, f32)))(a =>
+        fun(ArrayType(k, ArrayType(n, f32)))(b =>
+          a |> map(
+            fun(ak =>
+              transpose(b) |> map(
+                fun(bk =>
+                  zip(ak)(bk) |>
+                    map(fun(x => fst(x) * snd(x))) |>
+                    reduce(add)(lf32(0.0f))
+                )
+              )
+            )
+          )
+        )
+      )
+    )
   }
 
   def containsMap(n: NatPattern, f: Sketch): Sketch =
-    contains(app(map :: `?t` ->: (n`.``?dt`) ->: `?t`, f))
+    contains(app(map :: `?t` ->: (n `.` `?dt`) ->: `?t`, f))
   def containsMap(dt: DataTypePattern, f: Sketch): Sketch =
     contains(app(map :: `?t` ->: dt ->: `?t`, f))
   def containsMap(n: NatPattern, f: Sketch, in: Sketch): Sketch =
-    contains(app(app(map :: `?t` ->: (n`.``?dt`) ->: `?t`, f), in))
+    contains(app(app(map :: `?t` ->: (n `.` `?dt`) ->: `?t`, f), in))
   def containsMapPar(n: NatPattern, f: Sketch): Sketch =
-    contains(app(omp.mapPar :: `?t` ->: (n`.``?dt`) ->: `?t`, f))
+    contains(app(omp.mapPar :: `?t` ->: (n `.` `?dt`) ->: `?t`, f))
   def containsMapPar(dt: DataTypePattern, f: Sketch): Sketch =
     contains(app(omp.mapPar :: `?t` ->: dt ->: `?t`, f))
   def containsMapPar(n: NatPattern, f: Sketch, in: Sketch): Sketch =
-    contains(app(app(omp.mapPar :: `?t` ->: (n`.``?dt`) ->: `?t`, f), in))
+    contains(app(app(omp.mapPar :: `?t` ->: (n `.` `?dt`) ->: `?t`, f), in))
 
   def containsMapSeq(n: NatPattern, f: Sketch): Sketch =
-    contains(app(mapSeq :: `?t` ->: (n`.``?dt`) ->: `?t`, f))
+    contains(app(mapSeq :: `?t` ->: (n `.` `?dt`) ->: `?t`, f))
 
   def containsReduceSeq(n: NatPattern, f: Sketch): Sketch =
-    contains(app(reduceSeq :: `?t` ->: `?t` ->: (n`.``?dt`) ->: `?t`, f))
+    contains(app(reduceSeq :: `?t` ->: `?t` ->: (n `.` `?dt`) ->: `?t`, f))
   def containsReduceSeqUnroll(n: NatPattern, f: Sketch): Sketch =
-    contains(app(reduceSeqUnroll :: `?t` ->: `?t` ->: (n`.``?dt`) ->: `?t`, f))
+    contains(
+      app(reduceSeqUnroll :: `?t` ->: `?t` ->: (n `.` `?dt`) ->: `?t`, f)
+    )
 
   val m = `%n`(2)
   val n = `%n`(1)
   val k = `%n`(0)
 
   val containsAddMul = contains(
-    (app(app(add, ?), contains(mul)) : Sketch)/* or
+    (app(app(add, ?), contains(mul)): Sketch) /* or
     (contains(mul) >> contains(add))*/
   )
   val containsAddMulVec = contains(
@@ -73,7 +81,7 @@ object mm {
     // rules.splitJoin1M(32),
     rules.splitJoin2M(32),
     rules.blockedReduce(4),
-    rules.splitBeforeMap,
+    rules.splitBeforeMap
   )
 
   val splitStepCNF = GuidedSearch.Step.init(CNF) withRules Seq(
@@ -85,17 +93,17 @@ object mm {
     rules.combinatory.mapFission2,
     rules.reduceSeq,
     // rules.eliminateMapIdentity, //?
-    rules.combinatory.reduceSeqMapFusion, //?
+    rules.combinatory.reduceSeqMapFusion, // ?
     rules.combinatory.reduceSeqMapFusion2,
     rules.combinatory.reduceSeqMapFission,
-    rules.undoReduceSeqForAdd, //?
+    rules.undoReduceSeqForAdd, // ?
     // rules.mapEtaAbstraction,
     rules.combinatory.splitJoin(32),
     // rules.splitJoin1M(32),
     rules.combinatory.splitJoin2M(32),
     rules.combinatory.blockedReduce(4),
     rules.combinatory.splitBeforeMap,
-    rules.combinatory.splitBeforeMap2,
+    rules.combinatory.splitBeforeMap2
   )
 
   val reorderStepBENF = emptyStep withRules Seq(
@@ -109,7 +117,7 @@ object mm {
     rules.liftReduceSeq2,
     rules.liftReduceSeq3,
     // rules.transposeAroundMapMapF,
-    rules.transposeAroundMapMapF1M,
+    rules.transposeAroundMapMapF1M
   )
 
   val reorderStepCNF = GuidedSearch.Step.init(CNF) withRules Seq(
@@ -121,7 +129,7 @@ object mm {
     rules.combinatory.reduceSeqMapFusion,
     rules.combinatory.reduceSeqMapFusion2,
     rules.combinatory.reduceSeqMapFission,
-    rules.eliminateMapIdentity, //?
+    rules.eliminateMapIdentity, // ?
     // rules.undoReduceSeqForAdd, //?
     rules.combinatory.splitBeforeMap,
     rules.combinatory.splitBeforeMap2,
@@ -129,7 +137,7 @@ object mm {
     rules.combinatory.liftReduceSeq2,
     rules.combinatory.liftReduceSeq3,
     // rules.transposeAroundMapMapF,
-    rules.combinatory.transposeAroundMapMapF1M,
+    rules.combinatory.transposeAroundMapMapF1M
     // rules.mapEtaAbstraction,
   )
 
@@ -139,7 +147,7 @@ object mm {
     rules.storeToMem,
     rules.splitJoin2(32),
     rules.mapArray,
-    rules.transposeAroundMapMapF1M,
+    rules.transposeAroundMapMapF1M
   )
 
   val loweringStep = GuidedSearch.Step.init(BENF) withRules Seq(
@@ -147,14 +155,15 @@ object mm {
     rules.mapEtaAbstraction,
     rules.vectorize.after(32, rcdt.f32),
     rules.vectorize.after(32, rcdt.PairType(rcdt.f32, rcdt.f32)),
-    rules.vectorize.after(32, rcdt.PairType(rcdt.f32, rcdt.PairType(rcdt.f32, rcdt.f32))),
+    rules.vectorize
+      .after(32, rcdt.PairType(rcdt.f32, rcdt.PairType(rcdt.f32, rcdt.f32))),
     rules.vectorize.beforeMapF32,
     rules.vectorize.beforeMap_F32xF32,
     rules.vectorize.beforeMap_F32x_F32xF32,
     // rules.mapSeq,
     // rules.reduceSeq,
     rules.reduceSeqUnroll,
-    rules.omp.mapPar,
+    rules.omp.mapPar
   )
 
   private def goals(): Unit = {
@@ -171,7 +180,10 @@ object mm {
   private def N = 1024
   private def K = 1024
 
-  private def goal(name: String, strategy: elevate.core.Strategy[rise.core.Expr]): Unit = {
+  private def goal(
+      name: String,
+      strategy: elevate.core.Strategy[rise.core.Expr]
+  ): Unit = {
     val goal = (rise.elevate.strategies.normalForm.DFNF() `;` strategy) {
       import rise.core.DSL._
       mm(M)(N)(K)
@@ -195,7 +207,12 @@ object mm {
     object Cost extends CostFunction[Int] {
       val ordering = implicitly
 
-      override def cost(egraph: EGraph, enode: ENode, t: TypeId, costs: EClassId => Int): Int = {
+      override def cost(
+          egraph: EGraph,
+          enode: ENode,
+          t: TypeId,
+          costs: EClassId => Int
+      ): Int = {
         import rise.core.primitives._
         val nodeCost = enode match {
           // prefer asVectorAligned, until we can deal with alignement better
@@ -214,25 +231,36 @@ object mm {
             }
           case _ => 2
         }
-        enode.children().foldLeft(nodeCost) { case (acc, eclass) => acc + costs(eclass) }
+        enode.children().foldLeft(nodeCost) { case (acc, eclass) =>
+          acc + costs(eclass)
+        }
       }
     }
 
-    LoweringSearch.init().run(BENF, Cost, Seq(e), Seq(
-      // TODO:
-      // rules.hoistLetApp, rules.hoistLetLam,
-      rules.mapFusion,
-      rules.reduceSeq,
-      rules.mapSeq,
-      rules.mapSeqArray,
-      rules.vectorize.promoteAligned
-    )) match {
+    LoweringSearch
+      .init()
+      .run(
+        BENF,
+        Cost,
+        Seq(e),
+        Seq(
+          // TODO:
+          // rules.hoistLetApp, rules.hoistLetLam,
+          rules.mapFusion,
+          rules.reduceSeq,
+          rules.mapSeq,
+          rules.mapSeqArray,
+          rules.vectorize.promoteAligned
+        )
+      ) match {
       case Some(res) =>
         val loweredWithEqsat =
-          elevate.core.strategies.basic.repeat(
-            elevate.core.strategies.traversal.topDown(
-              apps.cameraPipelineRewrite.letHoist))(
-                Expr.toNamedUnique(res)).get
+          elevate.core.strategies.basic
+            .repeat(
+              elevate.core.strategies.traversal
+                .topDown(apps.cameraPipelineRewrite.letHoist)
+            )(Expr.toNamedUnique(res))
+            .get
         println(loweredWithEqsat)
 
         val withSizes = {
@@ -243,13 +271,20 @@ object mm {
           def betaNat(e: ExprWithHashCons, n: Nat): ExprWithHashCons = {
             e.node match {
               case NatLambda(b) => b.withNatArgument(eg, eg.addNat(n))
-              case _ => ???
+              case _            => ???
             }
           }
 
-          val e2 = betaNat(betaNat(betaNat(
-            ExprWithHashCons.fromExpr(eg)(Expr.fromNamed(loweredWithEqsat)),
-            cst(M)), cst(N)), cst(K))
+          val e2 = betaNat(
+            betaNat(
+              betaNat(
+                ExprWithHashCons.fromExpr(eg)(Expr.fromNamed(loweredWithEqsat)),
+                cst(M)
+              ),
+              cst(N)
+            ),
+            cst(K)
+          )
           Expr.toNamed(ExprWithHashCons.expr(eg)(e2))
         }
 
@@ -265,145 +300,220 @@ object mm {
     val steps = Seq(
       emptyStep withRules Seq(rules.reduceSeq, rules.reduceSeqMapFusion)
         withSketch
-        containsMap(m,
-          containsMap(n,
-            containsReduceSeq(k, containsAddMul))),
+        containsMap(m, containsMap(n, containsReduceSeq(k, containsAddMul)))
     )
 
-    GuidedSearch.init()
+    GuidedSearch
+      .init()
       .withFilter(StandardConstraintsPredicate)
       .run(start, steps)
   }
 
-  val runnerTrans: Runner => Runner = r => r
-    .withTimeLimit(java.time.Duration.ofMinutes(5))
-    .withMemoryLimit(4L * 1024L * 1024L * 1024L)
-    /*
+  val runnerTrans: Runner => Runner = r =>
+    r
+      .withTimeLimit(java.time.Duration.ofMinutes(5))
+      .withMemoryLimit(4L * 1024L * 1024L * 1024L)
+      /*
     .withTimeLimit(java.time.Duration.ofMinutes(60))
     .withMemoryLimit(32L * 1024L * 1024L * 1024L)
-     */
-    .withNodeLimit(50_000_000)
+       */
+      .withNodeLimit(50_000_000)
 
   private val split =
-    containsMap(m /^ cst(32),
-      containsMap(cst(32),
-        containsMap(n /^ cst(32),
-          containsMap(cst(32),
-            containsReduceSeq(k /^ cst(4),
-              containsReduceSeq(cst(4), containsAddMul))))))
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        cst(32),
+        containsMap(
+          n /^ cst(32),
+          containsMap(
+            cst(32),
+            containsReduceSeq(
+              k /^ cst(4),
+              containsReduceSeq(cst(4), containsAddMul)
+            )
+          )
+        )
+      )
+    )
   private val reorder_1 =
-    containsMap(m /^ cst(32),
-      containsMap(n /^ cst(32),
-        containsReduceSeq(k /^ cst(4),
-          containsReduceSeq(cst(4),
-            containsMap(cst(32),
-              containsMap(cst(32), containsAddMul))))))
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        n /^ cst(32),
+        containsReduceSeq(
+          k /^ cst(4),
+          containsReduceSeq(
+            cst(4),
+            containsMap(cst(32), containsMap(cst(32), containsAddMul))
+          )
+        )
+      )
+    )
   private val reorder_2 =
-    containsMap(m /^ cst(32),
-      containsMap(n /^ cst(32),
-        containsReduceSeq(k /^ cst(4),
-          containsMap(cst(32),
-            containsReduceSeq(cst(4),
-              containsMap(cst(32), containsAddMul))))))
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        n /^ cst(32),
+        containsReduceSeq(
+          k /^ cst(4),
+          containsMap(
+            cst(32),
+            containsReduceSeq(cst(4), containsMap(cst(32), containsAddMul))
+          )
+        )
+      )
+    )
 
   private def blocking_T(tilingStep: GuidedSearch.Step): GuidedSearch.Result = {
     val start = mm
 
     val steps = Seq(
-      tilingStep withSketch reorder_1,
+      tilingStep withSketch reorder_1
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
 
   private val blocking_4_sketches = Seq(
-    containsMap(m /^ cst(32),
-      containsMap(cst(32),
-        containsMap(n /^ cst(32),
-          containsMap(cst(32),
-            containsReduceSeq(k, containsAddMul))))),
-    containsMap(m /^ cst(32),
-      containsMap(n /^ cst(32),
-        containsMap(cst(32),
-          containsMap(cst(32),
-            containsReduceSeq(k, containsAddMul))))),
-    containsMap(m /^ cst(32),
-      containsMap(n /^ cst(32),
-        containsMap(cst(32),
-          containsMap(cst(32),
-            containsReduceSeq(k /^ cst(4),
-              containsReduceSeq(cst(4), containsAddMul)))))),
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        cst(32),
+        containsMap(
+          n /^ cst(32),
+          containsMap(cst(32), containsReduceSeq(k, containsAddMul))
+        )
+      )
+    ),
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        n /^ cst(32),
+        containsMap(
+          cst(32),
+          containsMap(cst(32), containsReduceSeq(k, containsAddMul))
+        )
+      )
+    ),
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        n /^ cst(32),
+        containsMap(
+          cst(32),
+          containsMap(
+            cst(32),
+            containsReduceSeq(
+              k /^ cst(4),
+              containsReduceSeq(cst(4), containsAddMul)
+            )
+          )
+        )
+      )
+    ),
     reorder_1
   )
 
-  private def blocking_TTTT(tilingStep: GuidedSearch.Step): GuidedSearch.Result = {
+  private def blocking_TTTT(
+      tilingStep: GuidedSearch.Step
+  ): GuidedSearch.Result = {
     val start = mm
 
     val steps = blocking_4_sketches.map(tilingStep.withSketch)
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
 
-  private def blocking_SRSR(splitStep: GuidedSearch.Step,
-                            reorderStep: GuidedSearch.Step): GuidedSearch.Result = {
+  private def blocking_SRSR(
+      splitStep: GuidedSearch.Step,
+      reorderStep: GuidedSearch.Step
+  ): GuidedSearch.Result = {
     val start = mm
 
     val steps = Seq(splitStep, reorderStep, splitStep, reorderStep)
-      .zip(blocking_4_sketches).map { case (s, p) => s withSketch p }
+      .zip(blocking_4_sketches)
+      .map { case (s, p) => s withSketch p }
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
 
-  private def blocking_TT(tilingStep: GuidedSearch.Step): GuidedSearch.Result = {
+  private def blocking_TT(
+      tilingStep: GuidedSearch.Step
+  ): GuidedSearch.Result = {
     val start = mm
 
     val steps = Seq(
       tilingStep withSketch split,
-      tilingStep withSketch reorder_1,
+      tilingStep withSketch reorder_1
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
 
-  private def blocking_SR(splitStep: GuidedSearch.Step,
-                          reorderStep: GuidedSearch.Step): GuidedSearch.Result = {
+  private def blocking_SR(
+      splitStep: GuidedSearch.Step,
+      reorderStep: GuidedSearch.Step
+  ): GuidedSearch.Result = {
     val start = mm
 
     val steps = Seq(
       splitStep withSketch split,
-      reorderStep withSketch reorder_1,
+      reorderStep withSketch reorder_1
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
 
   private val lower_1 =
-    containsMap(m /^ cst(32),
-      containsMap(n /^ cst(32),
-        containsReduceSeq(k /^ cst(4),
-          containsReduceSeq(cst(4),
-            containsMap(cst(32),
-              containsMap(cst(1), containsAddMulVec))))))
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        n /^ cst(32),
+        containsReduceSeq(
+          k /^ cst(4),
+          containsReduceSeq(
+            cst(4),
+            containsMap(cst(32), containsMap(cst(1), containsAddMulVec))
+          )
+        )
+      )
+    )
 
   private def vectorization_SRL(): GuidedSearch.Result = {
     val start = mm
@@ -412,12 +522,15 @@ object mm {
     val steps = Seq(
       splitStepBENF withSketch split,
       reorderStepBENF withSketch reorder_1,
-      loweringStep withSketch lower_1,
+      loweringStep withSketch lower_1
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
@@ -427,23 +540,33 @@ object mm {
     // could start directly from blocking outcome
 
     val steps = Seq(
-      (splitStepBENF compose reorderStepBENF compose loweringStep) withSketch lower_1,
+      (splitStepBENF compose reorderStepBENF compose loweringStep) withSketch lower_1
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
 
   private val lower_2 =
-    containsMap(m /^ cst(32),
-      containsMap(n /^ cst(32),
-        containsReduceSeq(k /^ cst(4),
-          containsMap(cst(32),
-            containsReduceSeq(cst(4),
-              containsMap(cst(1), containsAddMulVec))))))
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        n /^ cst(32),
+        containsReduceSeq(
+          k /^ cst(4),
+          containsMap(
+            cst(32),
+            containsReduceSeq(cst(4), containsMap(cst(1), containsAddMulVec))
+          )
+        )
+      )
+    )
 
   private def loopPerm_SRL(): GuidedSearch.Result = {
     val start = mm
@@ -451,12 +574,15 @@ object mm {
     val steps = Seq(
       splitStepBENF withSketch split,
       reorderStepBENF withSketch reorder_2,
-      loweringStep withSketch lower_2,
+      loweringStep withSketch lower_2
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
@@ -465,39 +591,72 @@ object mm {
     val start = mm
 
     val steps = Seq(
-      (splitStepBENF compose reorderStepBENF compose loweringStep) withSketch lower_2,
+      (splitStepBENF compose reorderStepBENF compose loweringStep) withSketch lower_2
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
 
   val store =
-    containsMap(m /^ cst(32),
-      containsMap(n /^ cst(32),
-        containsReduceSeq(k /^ cst(4),
-          containsMap(cst(32),
-            containsReduceSeq(cst(4),
-              containsMap(cst(32), containsAddMul))))),
-      contains(app(let, app(toMem :: (`?t` ->: (n`.`(k`.`f32))),
-        containsMap(n /^ cst(32),
-          containsMap(k,
-            containsMap(cst(32)`.`f32, ?)))))))
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        n /^ cst(32),
+        containsReduceSeq(
+          k /^ cst(4),
+          containsMap(
+            cst(32),
+            containsReduceSeq(cst(4), containsMap(cst(32), containsAddMul))
+          )
+        )
+      ),
+      contains(
+        app(
+          let,
+          app(
+            toMem :: (`?t` ->: (n `.` (k `.` f32))),
+            containsMap(
+              n /^ cst(32),
+              containsMap(k, containsMap(cst(32) `.` f32, ?))
+            )
+          )
+        )
+      )
+    )
 
   private val lower_3 =
-    containsMap(m /^ cst(32),
-      containsMap(n /^ cst(32),
-        containsReduceSeq(k /^ cst(4),
-          containsMap(cst(32),
-            containsReduceSeq(cst(4),
-              containsMap(cst(1), containsAddMulVec))))),
-      contains(app(let, app(toMem :: (`?t` ->: (n`.`(k`.`f32))),
-        containsMapPar(n /^ cst(32),
-          containsMap(k,
-            containsMap(cst(1)`.`vecT(cst(32), f32), ?)))))))
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        n /^ cst(32),
+        containsReduceSeq(
+          k /^ cst(4),
+          containsMap(
+            cst(32),
+            containsReduceSeq(cst(4), containsMap(cst(1), containsAddMulVec))
+          )
+        )
+      ),
+      contains(
+        app(
+          let,
+          app(
+            toMem :: (`?t` ->: (n `.` (k `.` f32))),
+            containsMapPar(
+              n /^ cst(32),
+              containsMap(k, containsMap(cst(1) `.` vecT(cst(32), f32), ?))
+            )
+          )
+        )
+      )
+    )
 
   private def arrayPacking_SRCL(): GuidedSearch.Result = {
     val start = mm
@@ -506,12 +665,15 @@ object mm {
       splitStepBENF withSketch split,
       reorderStepBENF withSketch reorder_2,
       copyStep withSketch store,
-      loweringStep withSketch lower_3,
+      loweringStep withSketch lower_3
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
@@ -523,24 +685,45 @@ object mm {
       (splitStepBENF compose reorderStepBENF compose copyStep compose loweringStep) withSketch lower_3
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
 
   private val lower_4 =
-    containsMap(m /^ cst(32),
-      containsMap(n /^ cst(32),
-        containsReduceSeq(k /^ cst(4),
-          containsMap(cst(32),
-            containsReduceSeqUnroll(cst(4),
-              containsMap(cst(1), containsAddMulVec))))),
-      contains(app(let, app(toMem :: (`?t` ->: (n`.`(k`.`f32))),
-        containsMapPar(n /^ cst(32),
-          containsMap(k,
-            containsMap(cst(1)`.`vecT(cst(32), f32), ?)))))))
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        n /^ cst(32),
+        containsReduceSeq(
+          k /^ cst(4),
+          containsMap(
+            cst(32),
+            containsReduceSeqUnroll(
+              cst(4),
+              containsMap(cst(1), containsAddMulVec)
+            )
+          )
+        )
+      ),
+      contains(
+        app(
+          let,
+          app(
+            toMem :: (`?t` ->: (n `.` (k `.` f32))),
+            containsMapPar(
+              n /^ cst(32),
+              containsMap(k, containsMap(cst(1) `.` vecT(cst(32), f32), ?))
+            )
+          )
+        )
+      )
+    )
 
   private def cacheBlocks_SRCL(): GuidedSearch.Result = {
     val start = mm
@@ -550,12 +733,15 @@ object mm {
       splitStepBENF withSketch split,
       reorderStepBENF withSketch reorder_2,
       copyStep withSketch store,
-      loweringStep withSketch lower_4,
+      loweringStep withSketch lower_4
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
@@ -568,24 +754,45 @@ object mm {
       (splitStepBENF compose reorderStepBENF compose copyStep compose loweringStep) withSketch lower_4
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
 
   val lower_5 =
-    containsMapPar(m /^ cst(32),
-      containsMap(n /^ cst(32),
-        containsReduceSeq(k /^ cst(4),
-          containsMap(cst(32),
-            containsReduceSeqUnroll(cst(4),
-              containsMap(cst(1), containsAddMulVec))))),
-      contains(app(let, app(toMem :: (`?t` ->: (n`.`(k`.`f32))),
-        containsMapPar(n /^ cst(32),
-          containsMap(k,
-            containsMap(cst(1)`.`vecT(cst(32), f32), ?)))))))
+    containsMapPar(
+      m /^ cst(32),
+      containsMap(
+        n /^ cst(32),
+        containsReduceSeq(
+          k /^ cst(4),
+          containsMap(
+            cst(32),
+            containsReduceSeqUnroll(
+              cst(4),
+              containsMap(cst(1), containsAddMulVec)
+            )
+          )
+        )
+      ),
+      contains(
+        app(
+          let,
+          app(
+            toMem :: (`?t` ->: (n `.` (k `.` f32))),
+            containsMapPar(
+              n /^ cst(32),
+              containsMap(k, containsMap(cst(1) `.` vecT(cst(32), f32), ?))
+            )
+          )
+        )
+      )
+    )
 
   def parallel_SRCL(): GuidedSearch.Result = {
     val start = mm
@@ -595,12 +802,15 @@ object mm {
       splitStepBENF withSketch split,
       reorderStepBENF withSketch reorder_2,
       copyStep withSketch store,
-      loweringStep withSketch lower_5,
+      loweringStep withSketch lower_5
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
@@ -613,9 +823,12 @@ object mm {
       (splitStepBENF compose reorderStepBENF compose copyStep compose loweringStep) withSketch lower_5
     )
 
-    GuidedSearch.init()
-      .withFilter(ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-        StandardConstraintsPredicate)
+    GuidedSearch
+      .init()
+      .withFilter(
+        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+          StandardConstraintsPredicate
+      )
       .withRunnerTransform(runnerTrans)
       .run(start, steps)
   }
@@ -630,23 +843,23 @@ object mm {
       // not found after 3mn+ and 2GiB+ (700K nodes, 400K classes)
       // "blocking T" -> { () => blocking_T(tilingStepBENF) },
       // "blocking TTTT" -> { () => blocking_TTTT(tilingStepBENF) },
-       // "blocking SRSR" -> { () => blocking_SRSR(splitStepBENF, reorderStepBENF) }, // note: faster than SR
+      // "blocking SRSR" -> { () => blocking_SRSR(splitStepBENF, reorderStepBENF) }, // note: faster than SR
       // FIXME: the program found has unwanted split/joins
       // "blocking TT" -> { () => blocking_TT(tilingStepBENF) },
-       "blocking SR" -> { () => blocking_SR(splitStepBENF, reorderStepBENF) },
-       // "blocking SSSR" -> blocking_SSSR _, // note: no improvement over SR
+      "blocking SR" -> { () => blocking_SR(splitStepBENF, reorderStepBENF) },
+      // "blocking SSSR" -> blocking_SSSR _, // note: no improvement over SR
       // FIXME: cannot find goal, rewriting is stuck with the given rules
       // "blocking SR CNF" -> { () => blocking_SR(splitStepCNF, reorderStepCNF) },
-       "vectorization SRL" -> vectorization_SRL _,
-       // "vectorization" -> vectorization _,
-       "loop-perm SRL" -> loopPerm_SRL _,
-       // "loop-perm" -> loopPerm _,
-       "array-packing SRCL" -> arrayPacking_SRCL _,
-       // "array-packing" -> arrayPacking _,
-       "cache-blocks SRCL" -> cacheBlocks_SRCL _,
-       // "cache-blocks" -> cacheBlocks _,
-       "parallel SRCL" -> parallel_SRCL _,
-       // "parallel" -> parallel _,
+      "vectorization SRL" -> vectorization_SRL _,
+      // "vectorization" -> vectorization _,
+      "loop-perm SRL" -> loopPerm_SRL _,
+      // "loop-perm" -> loopPerm _,
+      "array-packing SRCL" -> arrayPacking_SRCL _,
+      // "array-packing" -> arrayPacking _,
+      "cache-blocks SRCL" -> cacheBlocks_SRCL _,
+      // "cache-blocks" -> cacheBlocks _,
+      "parallel SRCL" -> parallel_SRCL _
+      // "parallel" -> parallel _,
     )
     val rs = fs.map { case (n, f) =>
       System.gc() // hint garbage collection to get more precise memory usage statistics
@@ -662,9 +875,10 @@ object mm {
     goals()
     rs.foreach { case (n, (t, r)) =>
       println(s"-------- $n")
-      val status = if (r.exprs.nonEmpty) { "found" } else { "not found" }
+      val status = if (r.exprs.nonEmpty) { "found" }
+      else { "not found" }
       println(s"$status after ${util.prettyTime(t)}")
-      r.printReport()
+    // r.printReport()
     }
   }
 }
@@ -679,163 +893,414 @@ object Reggvolve {
 
     println("---- RULES ----")
 
-    println(Reggvolution.reggvolveNamedRewrite("map-fission",
-      app(map, lam("x", app("f", "gx" :: ("dt": DataType))))
-        -->
-      lam("in", app(app(map, "f"), app(app(map, lam("x", "gx")), "in"))),
-      Seq("f" notFree "x")
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("reduce-seq",
-      reduce --> rcp.reduceSeq.primitive
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("eliminate-map-identity",
-      app(map, lam("x", "x"))
-        -->
-      lam("y", "y")
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("reduce-seq-map-fusion",
-      app(app(app(rcp.reduceSeq.primitive, "f"), "init"), app(app(map, "g"), "in"))
-        -->
-      app(app(app(rcp.reduceSeq.primitive, lam("acc", lam("x",
-        app(app("f", "acc"), app("g", "x"))))), "init"), "in")
-    ))
-    def splitJoin(n: Int) = Reggvolution.reggvolveNamedRewrite(s"split-join-$n",
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "eta-reduction",
+        lam("x", app("f", "x")) --> "f",
+        Seq("f" notFree "x")
+      )
+    )
+
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "map-fission",
+        app(map, lam("x", app("f", "gx" :: ("dt": DataType))))
+          -->
+            lam("in", app(app(map, "f"), app(app(map, lam("x", "gx")), "in"))),
+        Seq("f" notFree "x")
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "reduce-seq",
+        reduce --> rcp.reduceSeq.primitive
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "eliminate-map-identity",
+        app(map, lam("x", "x"))
+          -->
+            lam("y", "y")
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "reduce-seq-map-fusion",
+        app(
+          app(app(rcp.reduceSeq.primitive, "f"), "init"),
+          app(app(map, "g"), "in")
+        )
+          -->
+            app(
+              app(
+                app(
+                  rcp.reduceSeq.primitive,
+                  lam("acc", lam("x", app(app("f", "acc"), app("g", "x"))))
+                ),
+                "init"
+              ),
+              "in"
+            )
+      )
+    )
+    def splitJoin(n: Int) = Reggvolution.reggvolveNamedRewrite(
+      s"split-join-$n",
       app(app(map, "f"), "in")
         -->
-      app(join, app(app(map, app(map, "f")), app(nApp(split, n), "in")))
+          app(join, app(app(map, app(map, "f")), app(nApp(split, n), "in")))
     )
     println(splitJoin(32))
-    def splitJoin2M(n: Int) = Reggvolution.reggvolveNamedRewrite(s"split-join-2m-$n",
+    def splitJoin2M(n: Int) = Reggvolution.reggvolveNamedRewrite(
+      s"split-join-2m-$n",
       app(app(map, app(map, app(map, "f"))), "in")
         -->
-      app(app(map, app(map, join)), app(app(map, app(map, app(map, app(map, "f")))), app(app(map, app(map, nApp(split, n))), "in")))
+          app(
+            app(map, app(map, join)),
+            app(
+              app(map, app(map, app(map, app(map, "f")))),
+              app(app(map, app(map, nApp(split, n))), "in")
+            )
+          )
     )
     println(splitJoin2M(32))
-    def blockedReduce(n: Int) = Reggvolution.reggvolveNamedRewrite(s"blocked-reduce-$n",
+    def blockedReduce(n: Int) = Reggvolution.reggvolveNamedRewrite(
+      s"blocked-reduce-$n",
       app(app(app(reduce, "op" :: ("a" ->: "a" ->: t("a"))), "init"), "arg")
         -->
-      app(app(app(rcp.reduceSeq.primitive,
-        lam("acc", lam("y", app(app("op", "acc"),
-          app(app(app(reduce, "op"), "init"), "y"))))),
-        "init"), app(nApp(split, n), "arg"))
+          app(
+            app(
+              app(
+                rcp.reduceSeq.primitive,
+                lam(
+                  "acc",
+                  lam(
+                    "y",
+                    app(
+                      app("op", "acc"),
+                      app(app(app(reduce, "op"), "init"), "y")
+                    )
+                  )
+                )
+              ),
+              "init"
+            ),
+            app(nApp(split, n), "arg")
+          )
     )
     println(blockedReduce(4))
-    println(Reggvolution.reggvolveNamedRewrite("split-before-map",
-      app(nApp(split, "n"), app(app(map, "f"), "in"))
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "split-before-map",
+        app(nApp(split, "n"), app(app(map, "f"), "in"))
+          -->
+            app(app(map, app(map, "f")), app(nApp(split, "n"), "in"))
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "reduce-seq-map-fission",
+        app(
+          app(
+            rcp.reduceSeq.primitive,
+            lam(
+              "acc",
+              lam("y", app(app("op", "acc"), "gy" :: ("dt": DataType)))
+            )
+          ),
+          "init"
+        )
+          -->
+            lam(
+              "in",
+              app(
+                app(app(rcp.reduceSeq.primitive, "op"), "init"),
+                app(app(map, lam("y", "gy")), "in")
+              )
+            ),
+        Seq("op" notFree "y")
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "lift-reduce-seq",
+        app(map, app(app(rcp.reduceSeq.primitive, "op"), "init"))
+          -->
+            lam(
+              "in",
+              app(
+                app(
+                  app(
+                    rcp.reduceSeq.primitive,
+                    lam(
+                      "acc",
+                      lam(
+                        "y",
+                        app(
+                          app(
+                            map,
+                            lam(
+                              "z",
+                              app(app("op", app(fst, "z")), app(snd, "z"))
+                            )
+                          ),
+                          app(app(zip, "acc"), "y")
+                        )
+                      )
+                    )
+                  ),
+                  app(rcp.generate.primitive, lam("i", "init"))
+                ),
+                app(transpose, "in")
+              )
+            )
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "lift-reduce-seq-2",
+        app(
+          map,
+          lam(
+            "x",
+            app(
+              app(add, app(fst, "x")),
+              app(
+                app(app(rcp.reduceSeq.primitive, "op"), lf32(0)),
+                app(snd, "x")
+              )
+            )
+          )
+        )
+          -->
+            lam(
+              "in",
+              app(
+                lam(
+                  "uz",
+                  app(
+                    app(
+                      app(
+                        rcp.reduceSeq.primitive,
+                        lam(
+                          "acc",
+                          lam(
+                            "y",
+                            app(
+                              app(
+                                map,
+                                lam(
+                                  "z",
+                                  app(app("op", app(fst, "z")), app(snd, "z"))
+                                )
+                              ),
+                              app(app(zip, "acc"), "y")
+                            )
+                          )
+                        )
+                      ),
+                      app(fst, "uz")
+                    ),
+                    app(transpose, app(snd, "uz"))
+                  )
+                ),
+                app(unzip, "in")
+              )
+            )
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "lift-reduce-seq-3",
+        (app(
+          map,
+          lam(
+            "x",
+            app(
+              app(
+                app(rcp.reduceSeq.primitive, "op"),
+                app(fst, app(unzip, "x"))
+              ),
+              app(transpose, app(snd, app(unzip, "x")))
+            )
+          )
+        ))
+          -->
+            lam(
+              "in",
+              app(
+                app(
+                  app(
+                    rcp.reduceSeq.primitive,
+                    lam(
+                      "acc",
+                      lam(
+                        "y",
+                        app(
+                          app(
+                            map,
+                            lam(
+                              "z",
+                              app(app("op", app(fst, "z")), app(snd, "z"))
+                            )
+                          ),
+                          app(app(zip, "acc"), "y")
+                        )
+                      )
+                    )
+                  ),
+                  app(fst, app(unzip, app(app(map, unzip), "in")))
+                ),
+                app(
+                  transpose,
+                  app(
+                    app(map, transpose),
+                    app(snd, app(unzip, app(app(map, unzip), "in")))
+                  )
+                )
+              )
+            ),
+        Seq("op" notFree "x")
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "transpose-around-map-map-f-1m",
+        app(app(map, app(map, app(map, "f"))), "in")
+          -->
+            app(
+              app(map, transpose),
+              app(
+                app(map, app(map, app(map, "f"))),
+                app(app(map, transpose), "in")
+              )
+            )
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "store-to-mem",
+        ("in" :: ("dt": DataType))
+          -->
+            app(
+              app(rcp.let.primitive, app(rcp.toMem.primitive, "in")),
+              lam("x", "x")
+            )
+      )
+    )
+    def splitJoin2(n: Int) = Reggvolution.reggvolveNamedRewrite(
+      s"split-join-2-$n",
+      ("in" :: (`?n` `.` `?dt`))
         -->
-      app(app(map, app(map, "f")), app(nApp(split, "n"), "in"))
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("reduce-seq-map-fission",
-      app(app(rcp.reduceSeq.primitive, lam("acc", lam("y",
-        app(app("op", "acc"), "gy" :: ("dt": DataType))))), "init")
-        -->
-        lam("in", app(app(app(rcp.reduceSeq.primitive, "op"), "init"),
-          app(app(map, lam("y", "gy")), "in"))),
-      Seq("op" notFree "y")
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("lift-reduce-seq",
-      app(map, app(app(rcp.reduceSeq.primitive, "op"), "init"))
-        -->
-      lam("in",
-        app(app(app(rcp.reduceSeq.primitive, lam("acc", lam("y",
-          app(app(map, lam("z", app(app("op", app(fst, "z")), app(snd, "z")))),
-            app(app(zip, "acc"), "y"))
-        ))), app(rcp.generate.primitive, lam("i", "init"))),
-        app(transpose, "in")))
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("lift-reduce-seq-2",
-      app(map, lam("x", app(app(add, app(fst, "x")),
-        app(app(app(rcp.reduceSeq.primitive, "op"), lf32(0)), app(snd, "x")))))
-        -->
-      lam("in", app(lam("uz",
-        app(app(app(rcp.reduceSeq.primitive, lam("acc", lam("y",
-          app(app(map, lam("z", app(app("op", app(fst, "z")), app(snd, "z")))),
-            app(app(zip, "acc"), "y"))
-        ))), app(fst, "uz")), app(transpose, app(snd, "uz")))),
-        app(unzip, "in")))
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("lift-reduce-seq-3",
-      (app(map, lam("x",
-        app(app(app(rcp.reduceSeq.primitive, "op"), app(fst, app(unzip, "x"))),
-          app(transpose, app(snd, app(unzip, "x")))))))
-        -->
-      lam("in",
-        app(app(app(rcp.reduceSeq.primitive, lam("acc", lam("y",
-          app(app(map, lam("z", app(app("op", app(fst, "z")), app(snd, "z")))),
-            app(app(zip, "acc"), "y"))
-        ))), app(fst, app(unzip, app(app(map, unzip), "in")))),
-        app(transpose, app(app(map, transpose), app(snd, app(unzip, app(app(map, unzip), "in"))))))),
-      Seq("op" notFree "x")
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("transpose-around-map-map-f-1m",
-      app(app(map, app(map, app(map, "f"))), "in")
-        -->
-      app(app(map, transpose), app(app(map, app(map, app(map, "f"))), app(app(map, transpose), "in")))
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("store-to-mem",
-      ("in" :: ("dt": DataType))
-        -->
-      app(app(rcp.let.primitive, app(rcp.toMem.primitive, "in")), lam("x", "x"))
-    ))
-    def splitJoin2(n: Int) = Reggvolution.reggvolveNamedRewrite(s"split-join-2-$n",
-      ("in" :: (`?n``.``?dt`))
-        -->
-      app(join, app(nApp(split, n), "in"))
+          app(join, app(nApp(split, n), "in"))
     )
     splitJoin2(32)
-    println(Reggvolution.reggvolveNamedRewrite("map-array",
-      ("x" :: (`?n``.``?dt`))
-        -->
-      app(app(map, lam("y", "y")), "x")
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("map-fusion",
-      app(app(map, "f"), app(app(map, "g"), "in"))
-        -->
-      app(app(map, lam("x", app("f", app("g", "x")))), "in")
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("map-eta-abstraction",
-      app(map, "f") --> lam("x", app(app(map, "f"), "x"))
-    ))
-    object vectorize {
-      def after(n: Int, dt: DataType) = Reggvolution.reggvolveNamedRewrite(s"vec-$n-after-$dt",
-        // TODO: if m % n == 0 ?
-        ("e" :: (("m": Nat)`.`dt))
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "map-array",
+        ("x" :: (`?n` `.` `?dt`))
           -->
-        app(asScalar, app(nApp(asVector, n), "e"))
+            app(app(map, lam("y", "y")), "x")
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "map-fusion",
+        app(app(map, "f"), app(app(map, "g"), "in"))
+          -->
+            app(app(map, lam("x", app("f", app("g", "x")))), "in")
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "map-eta-abstraction",
+        app(map, "f") --> lam("x", app(app(map, "f"), "x"))
+      )
+    )
+    object vectorize {
+      def after(n: Int, dt: DataType) = Reggvolution.reggvolveNamedRewrite(
+        s"vec-$n-after-$dt",
+        // TODO: if m % n == 0 ?
+        ("e" :: (("m": Nat) `.` dt))
+          -->
+            app(asScalar, app(nApp(asVector, n), "e"))
       )
     }
     println(vectorize.after(32, f32))
     println(vectorize.after(32, f32 x f32))
     println(vectorize.after(32, f32 x (f32 x f32)))
-    println(Reggvolution.reggvolveNamedRewrite("vec-before-map-f32",
-      app(nApp(asVector, "n"), app(app(map, "f" :: f32 ->: f32), ("in": Pattern)))
-        -->
-      app(app(map, "fV"), app(nApp(asVector, "n"), "in")),
-      Seq(vectorizeScalarFun("f", "n", "fV"))
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("vec-before-map-f32xf32",
-      app(nApp(asVector, "n"), app(app(map, "f" :: (f32 x f32) ->: f32), ("in": Pattern)))
-        -->
-      app(app(map, "fV"),
-        app(app(zip, app(nApp(asVector, "n"), app(fst, app(unzip, "in")))),
-                      app(nApp(asVector, "n"), app(snd, app(unzip, "in"))))),
-      Seq(vectorizeScalarFun("f", "n", "fV"))
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("vec-before-map-f32x-f32xf32",
-      app(nApp(asVector, "n"), app(app(map, "f" :: (f32 x (f32 x f32)) ->: f32), ("in": Pattern)))
-        -->
-        app(app(map, "fV"),
-          app(app(zip, app(nApp(asVector, "n"), app(fst, app(unzip, "in")))),
-            app(app(zip, app(nApp(asVector, "n"), app(fst, app(unzip, app(snd, app(unzip, "in")))))),
-                          app(nApp(asVector, "n"), app(snd, app(unzip, app(snd, app(unzip, "in")))))))),
-      Seq(vectorizeScalarFun("f", "n", "fV"))
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("reduce-seq-unroll",
-      rcp.reduceSeq.primitive --> rcp.reduceSeqUnroll.primitive
-    ))
-    println(Reggvolution.reggvolveNamedRewrite("map-par",
-      map --> rise.openMP.primitives.mapPar.primitive
-    ))
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "vec-before-map-f32",
+        app(
+          nApp(asVector, "n"),
+          app(app(map, "f" :: f32 ->: f32), ("in": Pattern))
+        )
+          -->
+            app(app(map, "fV"), app(nApp(asVector, "n"), "in")),
+        Seq(vectorizeScalarFun("f", "n", "fV"))
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "vec-before-map-f32xf32",
+        app(
+          nApp(asVector, "n"),
+          app(app(map, "f" :: (f32 x f32) ->: f32), ("in": Pattern))
+        )
+          -->
+            app(
+              app(map, "fV"),
+              app(
+                app(zip, app(nApp(asVector, "n"), app(fst, app(unzip, "in")))),
+                app(nApp(asVector, "n"), app(snd, app(unzip, "in")))
+              )
+            ),
+        Seq(vectorizeScalarFun("f", "n", "fV"))
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "vec-before-map-f32x-f32xf32",
+        app(
+          nApp(asVector, "n"),
+          app(app(map, "f" :: (f32 x (f32 x f32)) ->: f32), ("in": Pattern))
+        )
+          -->
+            app(
+              app(map, "fV"),
+              app(
+                app(zip, app(nApp(asVector, "n"), app(fst, app(unzip, "in")))),
+                app(
+                  app(
+                    zip,
+                    app(
+                      nApp(asVector, "n"),
+                      app(fst, app(unzip, app(snd, app(unzip, "in"))))
+                    )
+                  ),
+                  app(
+                    nApp(asVector, "n"),
+                    app(snd, app(unzip, app(snd, app(unzip, "in"))))
+                  )
+                )
+              )
+            ),
+        Seq(vectorizeScalarFun("f", "n", "fV"))
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "reduce-seq-unroll",
+        rcp.reduceSeq.primitive --> rcp.reduceSeqUnroll.primitive
+      )
+    )
+    println(
+      Reggvolution.reggvolveNamedRewrite(
+        "map-par",
+        map --> rise.openMP.primitives.mapPar.primitive
+      )
+    )
 
     println("----")
   }
