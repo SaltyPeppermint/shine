@@ -217,7 +217,7 @@ object Reggvolution {
       case PatternVar(index) => s"?${index}"
       case PatternNode(node) =>
         node match {
-          case Var(index) => s"%${s.expr(index)}"
+          case Var(index) => s"%e${s.expr(index)}"
           // s"Var(${index + s._1})"
           case App(f, e) => s"(app ${reggvolve(f, s)} ${reggvolve(e, s)})"
           // s"App([${reggvolve(f, s)}, ${reggvolve(e, s)}])"
@@ -307,7 +307,7 @@ object Reggvolution {
       case NatPatternAny        => s"?nAny${nextAny()}"
       case NatPatternNode(n) =>
         n match {
-          case NatVar(index) => s"%${s.nat(index)}"
+          case NatVar(index) => s"%n${s.nat(index)}"
           case NatCst(value) => value.toString()
           case NatNegInf     => ???
           case NatPosInf     => ???
@@ -329,7 +329,7 @@ object Reggvolution {
 
   def reggvolve(dty: DataTypePatternNode, s: FShift): String = {
     dty.n match {
-      case DataTypeVar(index) => s"%${s.data(index)}"
+      case DataTypeVar(index) => s"%d${s.data(index)}"
       case ScalarType(s)      => s.toString()
       case NatType            => "natT"
       case IndexType(n)       => s"(idxT ${reggvolve(n, s)})"
@@ -350,7 +350,7 @@ object Reggvolution {
       case AddressPatternAny        => s"?aAny${nextAny()}"
       case AddressPatternNode(n) =>
         n match {
-          case AddressVar(index) => s"%${s.addr(index)}"
+          case AddressVar(index) => s"%a${s.addr(index)}"
           case Global            => "global"
           case Local             => "local"
           case Private           => "private"
