@@ -204,18 +204,20 @@ object Reggvolution {
   // def reggvolve(searcher: Searcher): String =
   // def reggvolve(applier: Applier): String =
 
+  // type FShift = (Int => Int, Int => Int, Int => Int, Int => Int, Int => Int);
+
   def reggvolve(pat: Pattern): String =
-    reggvolve(pat, (0, 0, 0, 0, 0))
+    reggvolve(pat, new FShift)
 
   def reggvolve(pat: NatPattern): String =
-    reggvolve(pat, (0, 0, 0, 0, 0))
+    reggvolve(pat, new FShift)
 
-  def reggvolve(pat: Pattern, s: Shift): String = {
+  def reggvolve(pat: Pattern, s: FShift): String = {
     val e = pat.p match {
       case PatternVar(index) => s"?${index}"
       case PatternNode(node) =>
         node match {
-          case Var(index) => s"%${index + s._1}"
+          case Var(index) => s"%${s.normal(index)}"
           // s"Var(${index + s._1})"
           case App(f, e) => s"(app ${reggvolve(f, s)} ${reggvolve(e, s)})"
           // s"App([${reggvolve(f, s)}, ${reggvolve(e, s)}])"
@@ -227,20 +229,20 @@ object Reggvolution {
           case AppNatToNat(f, x) =>
             s"(natNatApp ${reggvolve(f, s)} ${reggvolve(x, s)})"
           case Lambda(e) =>
-            val s2 = (s._1, s._2 + 1, s._3 + 1, s._4 + 1, s._5 + 1)
+            val s2 = s.normalShift();
             s"(lam ${reggvolve(e, s2)})"
           case NatLambda(e) =>
-            val s2 = (s._1 + 1, s._2, s._3 + 1, s._4 + 1, s._5 + 1)
+            val s2 = s.natShift();
             s"(natLam ${reggvolve(e, s2)})"
           case DataLambda(e) =>
-            val s2 = (s._1 + 1, s._2 + 1, s._3, s._4 + 1, s._5 + 1)
+            val s2 = s.dataShift();
             s"(dataLam ${reggvolve(e, s2)})"
           case AddrLambda(e) =>
-            val s2 = (s._1 + 1, s._2 + 1, s._3 + 1, s._4, s._5 + 1)
+            val s2 = s.addrShift();
             s"(addrLam ${reggvolve(e, s2)})"
           case LambdaNatToNat(e) =>
-            val s2 = (s._1 + 1, s._2 + 1, s._3 + 1, s._4 + 1, s._5)
-            s"(natNatLam ${reggvolve(e, s)})"
+            val s2 = s.natNatShift();
+            s"(natNatLam ${reggvolve(e, s2)})"
           case Literal(d) =>
             import rise.core.semantics._
 
@@ -267,7 +269,7 @@ object Reggvolution {
 
   }
 
-  def reggvolve(ty: TypePattern, s: Shift): String = {
+  def reggvolve(ty: TypePattern, s: FShift): String = {
     ty match {
       case TypePatternVar(index)     => s"?t${index}"
       case DataTypePatternVar(index) => s"?dt${index}"
@@ -277,24 +279,21 @@ object Reggvolution {
         n match {
           case dt: DataTypeNode[_, _] =>
             reggvolve(rise.eqsat.DataTypePatternNode(dt), s)
-          case FunType(
-                a,
-                b
-              ) =>
+          case FunType(a, b) =>
             s"(fun ${reggvolve(a, s)} ${reggvolve(b, s)})"
           // noTyApp(sym("fun"), List(a, b).map(reggvolve(_, s)))
           // TODO: do we need to remember the arg kind as a type ?
           case NatFunType(t) =>
-            val s2 = (s._1 + 1, s._2, s._3 + 1, s._4 + 1, s._5 + 1)
+            val s2 = s.natShift()
             s"(natFun ${reggvolve(t, s2)})"
           case DataFunType(t) =>
-            val s2 = (s._1 + 1, s._2 + 1, s._3, s._4 + 1, s._5 + 1)
+            val s2 = s.dataShift();
             s"(dataFun ${reggvolve(t, s2)})"
           case AddrFunType(t) =>
-            val s2 = (s._1 + 1, s._2 + 1, s._3 + 1, s._4, s._5 + 1)
+            val s2 = s.addrShift();
             s"(addrFun ${reggvolve(t, s2)})"
           case NatToNatFunType(t) =>
-            val s2 = (s._1 + 1, s._2 + 1, s._3 + 1, s._4 + 1, s._5)
+            val s2 = s.natNatShift();
             s"(natNatFun ${reggvolve(t, s2)})"
         }
       // FIXME: this construct is redundant ???
@@ -302,13 +301,13 @@ object Reggvolution {
     }
   }
 
-  def reggvolve(n: NatPattern, s: Shift): String = {
+  def reggvolve(n: NatPattern, s: FShift): String = {
     n match {
       case NatPatternVar(index) => s"?n${index}"
       case NatPatternAny        => s"?nAny${nextAny()}"
       case NatPatternNode(n) =>
         n match {
-          case NatVar(index) => s"%${index + s._2}"
+          case NatVar(index) => s"%${s.nat(index)}"
           case NatCst(value) => value.toString()
           case NatNegInf     => ???
           case NatPosInf     => ???
@@ -328,9 +327,9 @@ object Reggvolution {
     }
   }
 
-  def reggvolve(dty: DataTypePatternNode, s: Shift): String = {
+  def reggvolve(dty: DataTypePatternNode, s: FShift): String = {
     dty.n match {
-      case DataTypeVar(index) => s"%${index + s._3}"
+      case DataTypeVar(index) => s"%${s.data(index)}"
       case ScalarType(s)      => s.toString()
       case NatType            => "natT"
       case IndexType(n)       => s"(idxT ${reggvolve(n, s)})"
@@ -345,13 +344,13 @@ object Reggvolution {
     }
   }
 
-  def reggvolve(a: AddressPattern, s: Shift): String = {
+  def reggvolve(a: AddressPattern, s: FShift): String = {
     a match {
       case AddressPatternVar(index) => s"?a${index}"
       case AddressPatternAny        => s"?aAny${nextAny()}"
       case AddressPatternNode(n) =>
         n match {
-          case AddressVar(index) => s"%${index + s._4}"
+          case AddressVar(index) => s"%${s.addr(index)}"
           case Global            => "global"
           case Local             => "local"
           case Private           => "private"
@@ -360,8 +359,68 @@ object Reggvolution {
     }
   }
 
-  def reggvolve(n: NatToNatNode[NatPattern], s: Shift): String = {
+  def reggvolve(n: NatToNatNode[NatPattern], s: FShift): String = {
     ???
   }
 
+}
+
+class FShift(
+    var normal: Int => Int,
+    var nat: Int => Int,
+    var data: Int => Int,
+    var addr: Int => Int,
+    var natNat: Int => Int
+) {
+  private def cond(s: Int => Int): Int => Int = { i =>
+    if (i > s(i)) { s(i) + 1 }
+    else { i }
+  }
+
+  def this() = {
+    this(
+      Function.const(0: Int),
+      Function.const(0: Int),
+      Function.const(0: Int),
+      Function.const(0: Int),
+      Function.const(0: Int)
+    )
+  }
+
+  def normalShift(): FShift = {
+    this.nat = cond(this.nat);
+    this.data = cond(this.data);
+    this.addr = cond(this.addr);
+    this.natNat = cond(this.natNat);
+    this
+  }
+
+  def natShift(): FShift = {
+    this.normal = cond(this.normal);
+    this.data = cond(this.data);
+    this.addr = cond(this.addr);
+    this.natNat = cond(this.natNat);
+    this
+  }
+  def dataShift(): FShift = {
+    this.normal = cond(this.normal);
+    this.nat = cond(this.nat);
+    this.addr = cond(this.addr);
+    this.natNat = cond(this.natNat);
+    this
+  }
+  def addrShift(): FShift = {
+    this.normal = cond(this.normal);
+    this.nat = cond(this.nat);
+    this.data = cond(this.data);
+    this.natNat = cond(this.natNat);
+    this
+  }
+  def natNatShift(): FShift = {
+    this.normal = cond(this.normal);
+    this.nat = cond(this.nat);
+    this.data = cond(this.data);
+    this.addr = cond(this.addr);
+    this
+  }
 }
