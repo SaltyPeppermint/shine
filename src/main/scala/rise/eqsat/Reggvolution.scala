@@ -217,7 +217,7 @@ object Reggvolution {
       case PatternVar(index) => s"?${index}"
       case PatternNode(node) =>
         node match {
-          case Var(index) => s"%${s.normal(index)}"
+          case Var(index) => s"%${s.expr(index)}"
           // s"Var(${index + s._1})"
           case App(f, e) => s"(app ${reggvolve(f, s)} ${reggvolve(e, s)})"
           // s"App([${reggvolve(f, s)}, ${reggvolve(e, s)}])"
@@ -229,7 +229,7 @@ object Reggvolution {
           case AppNatToNat(f, x) =>
             s"(natNatApp ${reggvolve(f, s)} ${reggvolve(x, s)})"
           case Lambda(e) =>
-            val s2 = s.normalShift();
+            val s2 = s.exprShift();
             s"(lam ${reggvolve(e, s2)})"
           case NatLambda(e) =>
             val s2 = s.natShift();
@@ -366,7 +366,7 @@ object Reggvolution {
 }
 
 class FShift(
-    var normal: Int => Int,
+    var expr: Int => Int,
     var nat: Int => Int,
     var data: Int => Int,
     var addr: Int => Int,
@@ -387,7 +387,7 @@ class FShift(
     )
   }
 
-  def normalShift(): FShift = {
+  def exprShift(): FShift = {
     this.nat = cond(this.nat);
     this.data = cond(this.data);
     this.addr = cond(this.addr);
@@ -396,28 +396,28 @@ class FShift(
   }
 
   def natShift(): FShift = {
-    this.normal = cond(this.normal);
+    this.expr = cond(this.expr);
     this.data = cond(this.data);
     this.addr = cond(this.addr);
     this.natNat = cond(this.natNat);
     this
   }
   def dataShift(): FShift = {
-    this.normal = cond(this.normal);
+    this.expr = cond(this.expr);
     this.nat = cond(this.nat);
     this.addr = cond(this.addr);
     this.natNat = cond(this.natNat);
     this
   }
   def addrShift(): FShift = {
-    this.normal = cond(this.normal);
+    this.expr = cond(this.expr);
     this.nat = cond(this.nat);
     this.data = cond(this.data);
     this.natNat = cond(this.natNat);
     this
   }
   def natNatShift(): FShift = {
-    this.normal = cond(this.normal);
+    this.expr = cond(this.expr);
     this.nat = cond(this.nat);
     this.data = cond(this.data);
     this.addr = cond(this.addr);
