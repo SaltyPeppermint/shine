@@ -373,8 +373,11 @@ class FShift(
     var natNat: Int => Int
 ) {
   private def cond(s: Int => Int): Int => Int = { i =>
-    if (i > s(i)) { s(i) + 1 }
-    else { i }
+    {
+      var x = s(i)
+      if (i < x) x + 1 else i
+    }
+
   }
 
   def this() = {
@@ -388,39 +391,50 @@ class FShift(
   }
 
   def exprShift(): FShift = {
-    this.nat = cond(this.nat);
-    this.data = cond(this.data);
-    this.addr = cond(this.addr);
-    this.natNat = cond(this.natNat);
-    this
+
+    new FShift(
+      cond(this.expr),
+      this.nat,
+      this.data,
+      this.addr,
+      this.natNat
+    )
   }
 
   def natShift(): FShift = {
-    this.expr = cond(this.expr);
-    this.data = cond(this.data);
-    this.addr = cond(this.addr);
-    this.natNat = cond(this.natNat);
-    this
+    new FShift(
+      this.expr,
+      cond(this.nat),
+      this.data,
+      this.addr,
+      this.natNat
+    )
   }
   def dataShift(): FShift = {
-    this.expr = cond(this.expr);
-    this.nat = cond(this.nat);
-    this.addr = cond(this.addr);
-    this.natNat = cond(this.natNat);
-    this
+    new FShift(
+      this.expr,
+      this.nat,
+      cond(this.data),
+      this.addr,
+      this.natNat
+    )
   }
   def addrShift(): FShift = {
-    this.expr = cond(this.expr);
-    this.nat = cond(this.nat);
-    this.data = cond(this.data);
-    this.natNat = cond(this.natNat);
-    this
+    new FShift(
+      this.expr,
+      this.nat,
+      this.data,
+      cond(this.addr),
+      this.natNat
+    )
   }
   def natNatShift(): FShift = {
-    this.expr = cond(this.expr);
-    this.nat = cond(this.nat);
-    this.data = cond(this.data);
-    this.addr = cond(this.addr);
-    this
+    new FShift(
+      this.expr,
+      this.nat,
+      this.data,
+      this.addr,
+      cond(this.natNat)
+    )
   }
 }
