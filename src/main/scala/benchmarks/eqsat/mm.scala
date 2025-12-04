@@ -878,7 +878,7 @@ object mm {
       val status = if (r.exprs.nonEmpty) { "found" }
       else { "not found" }
       println(s"$status after ${util.prettyTime(t)}")
-    // r.printReport()
+      r.printReport()
     }
   }
 }

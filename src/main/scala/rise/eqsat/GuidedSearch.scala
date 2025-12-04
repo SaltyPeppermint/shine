@@ -148,7 +148,7 @@ class GuidedSearch(
             normRewriteCount += rc
             n
           }
-          // println(s"beam head: ${Expr.toNamed(normBeam.head)}")
+          println(s"beam head: ${Expr.toNamed(normBeam.head)}")
           val rootId = normBeam
             .map(egraph.addExpr)
             .reduce[EClassId] { case (a, b) => egraph.union(a, b)._1 }
@@ -167,7 +167,10 @@ class GuidedSearch(
                 .ofNanos(timeLimit - (System.nanoTime() - startTime))
             )
             .doneWhen { _ =>
-              // util.printTime("goal check", Sketch.exists(step.sketch, egraph, rootId))
+              util.printTime(
+                "goal check",
+                Sketch.exists(step.sketch, egraph, rootId)
+              )
 
               Sketch.exists(step.sketch, egraph, rootId)
             }

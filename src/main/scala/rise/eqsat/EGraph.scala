@@ -529,9 +529,11 @@ class EGraph(
 
     val eliminatedClasses = originalClassCount - classCount()
     val eliminatedNodes = originalNodeCount - nodeCount()
-    // println(s"filter eliminated $eliminatedClasses classes" +
-    //   s" and $eliminatedNodes nodes" +
-    //   s" in ${Seq(rt1, rt2, rt3).map(util.prettyTime).mkString(" + ")}")
+    println(
+      s"filter eliminated $eliminatedClasses classes" +
+        s" and $eliminatedNodes nodes" +
+        s" in ${Seq(rt1, rt2, rt3).map(util.prettyTime).mkString(" + ")}"
+    )
     (eliminatedClasses, eliminatedNodes)
   }
 }
