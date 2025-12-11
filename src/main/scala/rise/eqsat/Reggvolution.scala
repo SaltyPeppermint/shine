@@ -284,17 +284,17 @@ object Reggvolution {
           // noTyApp(sym("fun"), List(a, b).map(reggvolve(_, s)))
           // TODO: do we need to remember the arg kind as a type ?
           case NatFunType(t) =>
-            val s2 = s.natShift()
-            s"(natFun ${reggvolve(t, s2)})"
+            // val s2 = s.natShift()
+            s"(natFun ${reggvolve(t, s)})"
           case DataFunType(t) =>
-            val s2 = s.dataShift();
-            s"(dataFun ${reggvolve(t, s2)})"
+            // val s2 = s.dataShift();
+            s"(dataFun ${reggvolve(t, s)})"
           case AddrFunType(t) =>
-            val s2 = s.addrShift();
-            s"(addrFun ${reggvolve(t, s2)})"
+            // val s2 = s.addrShift();
+            s"(addrFun ${reggvolve(t, s)})"
           case NatToNatFunType(t) =>
-            val s2 = s.natNatShift();
-            s"(natNatFun ${reggvolve(t, s2)})"
+            // val s2 = s.natNatShift();
+            s"(natNatFun ${reggvolve(t, s)})"
         }
       // FIXME: this construct is redundant ???
       case dtn: DataTypePatternNode => reggvolve(dtn, s)
