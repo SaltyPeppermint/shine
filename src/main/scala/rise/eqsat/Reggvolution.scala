@@ -8,29 +8,14 @@ package rise.eqsat
 
  */
 object Reggvolution {
-  // def sym(s: String): String = s
-  // s"""sym("$s")"""
-
-  // cascade of apps bearing no types, used to encode many language constructs
-  // as simple symbol applications
-  // def noTyApp(f: String, args: Iterable[String]): String = {
-  //   args.foldLeft(f) { case (acc, arg) =>
-  //     s"(app $acc $arg)"
-  //   // s"App([$acc, $arg])"
-  //   }
-  // }
-
   var anyCounter = 0
   def nextAny(): Int = {
     this.anyCounter += 1
     this.anyCounter - 1
   }
 
-  type Shift = rise.eqsat.Expr.Shift
-
-  def reggvolve(expr: Expr): String =
-    // NOTE: could define reggvolution for generic nodes, but this is simpler
-    reggvolve(Pattern.fromExpr(expr))
+  // NOTE: could define reggvolution for generic nodes, but this is simpler
+  def reggvolve(expr: Expr): String = reggvolve(Pattern.fromExpr(expr))
 
   // same as NamedRewrite.init, but flattens DeBruijn indices from different kinds.
   // TODO: could factorize even more
@@ -49,22 +34,25 @@ object Reggvolution {
 
     val (typedLhs, freeV, freeT, typedRhs) = typeRule(rule, parameters)
 
-    type FlatShift = Int
-    val patVars: PatternVarMap[FlatShift, PatternVar] = HashMap()
-    val natPatVars: PatternVarMap[FlatShift, NatPatternVar] = HashMap()
-    val dataTypePatVars: PatternVarMap[FlatShift, DataTypePatternVar] =
-      HashMap()
-    val typePatVars: PatternVarMap[FlatShift, TypePatternVar] = HashMap()
-    val addrPatVars: PatternVarMap[FlatShift, AddressPatternVar] = HashMap()
-
+    val patVars: PatternVarMap[Expr.Shift, PatternVar] = HashMap()
+    val natPatVars: PatternVarMap[Nat.Shift, NatPatternVar] = HashMap()
+    val dataTypePatVars: PatternVarMap[Type.Shift, DataTypePatternVar] = HashMap()
+    val typePatVars: PatternVarMap[Type.Shift, TypePatternVar] = HashMap()
+    val addrPatVars: PatternVarMap[Address.Shift, AddressPatternVar] = HashMap()
     // nats which we need to pivot to avoid matching over certain nat constructs
-    val natsToPivot =
-      Vec[(rct.Nat, rct.NatIdentifier, FlatShift, NatPatternVar)]()
+    val natsToPivot = Vec[(rct.Nat, rct.NatIdentifier, Nat.Shift, NatPatternVar)]()
 
-    val boundVarToShift = HashMap[String, FlatShift]()
+    val boundVarToShift = HashMap[String, Expr.Shift]()
 
-    def shiftOfBound(bound: Expr.Bound): FlatShift =
-      bound.expr.size + bound.nat.size + bound.data.size + bound.addr.size + bound.n2n.size
+    def shiftOfBound(bound: Expr.Bound): Expr.Shift =
+      (bound.expr.size, bound.nat.size, bound.data.size, bound.addr.size, bound.n2n.size)
+
+    def natShiftOfBound(bound: Expr.Bound): Nat.Shift = (bound.nat.size, bound.n2n.size)
+
+    def typeShiftOfBound(bound: Expr.Bound): Type.Shift =
+      (bound.nat.size, bound.data.size, bound.n2n.size)
+
+    def addrShiftOfBound(bound: Expr.Bound): Address.Shift = bound.addr.size
 
     val lhsPat = makePat(
       typedLhs,
@@ -73,9 +61,9 @@ object Reggvolution {
       freeV,
       freeT,
       shiftOfBound,
-      shiftOfBound,
-      shiftOfBound,
-      shiftOfBound,
+      natShiftOfBound,
+      typeShiftOfBound,
+      addrShiftOfBound,
       patVars,
       natPatVars,
       dataTypePatVars,
@@ -91,9 +79,9 @@ object Reggvolution {
       freeV,
       freeT,
       shiftOfBound,
-      shiftOfBound,
-      shiftOfBound,
-      shiftOfBound,
+      natShiftOfBound,
+      typeShiftOfBound,
+      addrShiftOfBound,
       patVars,
       natPatVars,
       dataTypePatVars,
@@ -103,40 +91,110 @@ object Reggvolution {
       boundVarToShift
     )
 
-    def patMkShift(s1: FlatShift, pv1: Any)(s2: FlatShift, pv2: Any)(
+    def patMkShift(s1: Expr.Shift, pv1: PatternVar)(s2: Expr.Shift, pv2: PatternVar)(
         applier: String
     ): String = {
       // println(s"printing pv1 from patMkShift: ${pv1}")
       assert(s1 != s2)
       val cutoff = s1
-      val shift = s2 - s1
+      val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3, s2._4 - s1._4, s2._5 - s1._5)
       s"""Shifted::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
     }
 
-    def patMkShiftCheck(s1: FlatShift, pv1: Any)(s2: FlatShift, pv2: Any)(
+    def patMkShiftCheck(s1: Expr.Shift, pv1: PatternVar)(s2: Expr.Shift, pv2: PatternVar)(
         applier: String
     ): String = {
       // println(s"printing pv1 from patMkShiftCheck: ${pv1}")
       assert(s1 != s2)
       val cutoff = s1
-      val shift = s2 - s1
+      val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3, s2._4 - s1._4, s2._5 - s1._5)
       s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
     }
 
-    def mkComputeNatCheck(
-        pv: NatPatternVar,
-        valuePat: NatPattern,
+    def natPatMkShift(s1: Nat.Shift, pv1: NatPatternVar)(s2: Nat.Shift, pv2: NatPatternVar)(
         applier: String
     ): String = {
+      assert(s1 != s2)
+      val cutoff = s1
+      val shift = (s2._1 - s1._1, s2._2 - s1._2)
+      s"""Shifted::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+    }
+
+    def natPatMkShiftCheck(s1: Nat.Shift, pv1: NatPatternVar)(s2: Nat.Shift, pv2: NatPatternVar)(
+        applier: String
+    ): String = {
+      assert(s1 != s2)
+      val cutoff = s1
+      val shift = (s2._1 - s1._1, s2._2 - s1._2)
+      s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+    }
+
+    def dataTypePatMkShift(
+        s1: Type.Shift,
+        pv1: DataTypePatternVar
+    )(s2: Type.Shift, pv2: DataTypePatternVar)(applier: String): String = {
+      assert(s1 != s2)
+      val cutoff = s1
+      val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3)
+      s"""Shifted::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+    }
+
+    def dataTypePatMkShiftCheck(
+        s1: Type.Shift,
+        pv1: DataTypePatternVar
+    )(s2: Type.Shift, pv2: DataTypePatternVar)(applier: String): String = {
+      assert(s1 != s2)
+      val cutoff = s1
+      val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3)
+      s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+    }
+
+    def typePatMkShift(s1: Type.Shift, pv1: TypePatternVar)(s2: Type.Shift, pv2: TypePatternVar)(
+        applier: String
+    ): String = {
+      assert(s1 != s2)
+      val cutoff = s1
+      val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3)
+      s"""Shifted::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+    }
+
+    def typePatMkShiftCheck(
+        s1: Type.Shift,
+        pv1: TypePatternVar
+    )(s2: Type.Shift, pv2: TypePatternVar)(applier: String): String = {
+      assert(s1 != s2)
+      val cutoff = s1
+      val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3)
+      s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+    }
+
+    def addrPatMkShift(
+        s1: Address.Shift,
+        pv1: AddressPatternVar
+    )(s2: Address.Shift, pv2: AddressPatternVar)(applier: String): String = {
+      assert(s1 != s2)
+      val cutoff = s1
+      val shift = (s2 - s1)
+      // ShiftedAddressApplier(pv1, pv2, shift, cutoff, applier)
+      ???
+    }
+
+    def addrPatMkShiftCheck(
+        s1: Address.Shift,
+        pv1: AddressPatternVar
+    )(s2: Address.Shift, pv2: AddressPatternVar)(applier: String): String = {
+      assert(s1 != s2)
+      val cutoff = s1
+      val shift = (s2 - s1)
+      ???
+    }
+
+    def mkComputeNatCheck(pv: NatPatternVar, valuePat: NatPattern, applier: String): String = {
       val vp = reggvolve(valuePat)
       s"""ComputeNatCheck::new("${pv}", "${vp}", ${applier})"""
     }
 
-    def mkComputeNat(
-        pv: NatPatternVar,
-        valuePat: NatPattern,
-        applier: String
-    ): String = {
+    def mkComputeNat(pv: NatPatternVar, valuePat: NatPattern, applier: String): String = {
       val vp = reggvolve(valuePat)
       s"""ComputeNat::new("${pv}", "${vp}", ${applier})"""
     }
@@ -145,52 +203,48 @@ object Reggvolution {
     val param = parameters.foldRight((a: String) => a) { case (c, acc) =>
       c match {
         case NotFreeIn(notFree, in) =>
-          val nfShift = boundVarToShift.getOrElse(notFree, 0)
+          val nfShift = boundVarToShift.getOrElse(notFree, (0, 0, 0, 0, 0))._1
           // all left-hand-side uses of `in` may contain `notFree`
-          assert(patVars(in).forall { case (shift, (_, status)) =>
+          assert(patVars(in).forall { case ((shift, _, _, _, _), (_, status)) =>
             shift >= nfShift || status != Known
           })
           // pick one of these uses
-          val (iS, iPV) = patVars(in).collectFirst { case (s, (pv, Known)) =>
+          val (iS, iPV) = patVars(in).collectFirst { case ((s, _, _, _, _), (pv, Known)) =>
             (s, pv)
           }.get
           val nfIndex = iS - nfShift // >= 0 because iS >= nfShift
-          (a: String) =>
-            s"""NotFreeIn::new("${iPV}", ${nfIndex}, ${a})"""
           // NotFreeInApplier(iPV, nfIndex, acc(a))
+          (a: String) => s"""NotFreeIn::new("${iPV}", ${nfIndex}, ${a})"""
         case VectorizeScalarFun(f, n, fV) =>
-          val (nPV, nST) = natPatVars(n)(0)
+          val (nPV, nST) = natPatVars(n)(0, 0)
           assert(nST == Known)
-          val (fPV, fST) = patVars(f)(0)
+          val (fPV, fST) = patVars(f)((0, 0, 0, 0, 0))
           assert(fST == Known)
-          val fVPV = makePatVar(fV, 0, patVars, PatternVar, Known)
-          (a: String) =>
-            s"""VectorizeScalarFun::new("${fPV}", "${nPV}", "${fVPV}", ${a})"""
-        // VectorizeScalarFunExtractApplier(fPV, nPV, fVPV, acc(a))
+          val fVPV = makePatVar(fV, (0, 0, 0, 0, 0), patVars, PatternVar, Known)
+          // VectorizeScalarFunExtractApplier(fPV, nPV, fVPV, acc(a))
+          (a: String) => s"""VectorizeScalarFun::new("${fPV}", "${nPV}", "${fVPV}", ${a})"""
       }
     }
     val rhsPatApplier = s"""pat("${reggvolve(rhsPat)}")"""
     val shiftPV = shiftAppliers(patVars, patMkShift, patMkShiftCheck)
-    val shiftNPV = shiftAppliers(natPatVars, patMkShift, patMkShiftCheck)
-    val shiftDTPV = shiftAppliers(dataTypePatVars, patMkShift, patMkShiftCheck)
-    val shiftTPV = shiftAppliers(typePatVars, patMkShift, patMkShiftCheck)
-    val shiftAPV = shiftAppliers(addrPatVars, patMkShift, patMkShiftCheck)
+    val shiftNPV = shiftAppliers(natPatVars, natPatMkShift, natPatMkShiftCheck)
+    val shiftDTPV = shiftAppliers(dataTypePatVars, dataTypePatMkShift, dataTypePatMkShiftCheck)
+    val shiftTPV = shiftAppliers(typePatVars, typePatMkShift, typePatMkShiftCheck)
+    val shiftAPV = shiftAppliers(addrPatVars, addrPatMkShift, addrPatMkShiftCheck)
     val pivotNPV = pivotNats(
       natsToPivot.toSeq,
       natPatVars,
-      patMkShift,
-      patMkShiftCheck,
+      natPatMkShift,
+      natPatMkShiftCheck,
       mkComputeNatCheck,
       mkComputeNat
     )
-    val applier = param(
-      shiftPV(shiftNPV(shiftDTPV(shiftTPV(shiftAPV(pivotNPV(rhsPatApplier))))))
-    )
+    val applier = param(shiftPV(shiftNPV(shiftDTPV(shiftTPV(shiftAPV(pivotNPV(rhsPatApplier)))))))
 
-    def allIsShiftCoherent[S, V](pvm: PatternVarMap[S, V]): Boolean =
-      pvm.forall { case (_, shiftMap) =>
+    def allIsShiftCoherent[S, V](pvm: PatternVarMap[S, V]): Boolean = pvm.forall {
+      case (_, shiftMap) =>
         shiftMap.forall { case (_, (_, status)) => status == ShiftCoherent }
-      }
+    }
     assert(allIsShiftCoherent(patVars))
     assert(allIsShiftCoherent(natPatVars))
     assert(allIsShiftCoherent(dataTypePatVars))
@@ -200,49 +254,22 @@ object Reggvolution {
     s"""rewrite!("${name}"; ${searcher} => { ${applier} }),"""
   }
 
-  // DEPRECATED:
-  // def reggvolve(searcher: Searcher): String =
-  // def reggvolve(applier: Applier): String =
-
-  // type FShift = (Int => Int, Int => Int, Int => Int, Int => Int, Int => Int);
-
-  def reggvolve(pat: Pattern): String =
-    reggvolve(pat, new FShift)
-
-  def reggvolve(pat: NatPattern): String =
-    reggvolve(pat, new FShift)
-
-  def reggvolve(pat: Pattern, s: FShift): String = {
+  def reggvolve(pat: Pattern): String = {
     val e = pat.p match {
       case PatternVar(index) => s"?${index}"
       case PatternNode(node) =>
         node match {
-          case Var(index) => s"%e${s.expr(index)}"
-          // s"Var(${index + s._1})"
-          case App(f, e) => s"(app ${reggvolve(f, s)} ${reggvolve(e, s)})"
-          // s"App([${reggvolve(f, s)}, ${reggvolve(e, s)}])"
-          case NatApp(f, x) => s"(natApp ${reggvolve(f, s)} ${reggvolve(x, s)})"
-          case DataApp(f, x) =>
-            s"(dataApp ${reggvolve(f, s)} ${reggvolve(x, s)})"
-          case AddrApp(f, x) =>
-            s"(addrApp ${reggvolve(f, s)} ${reggvolve(x, s)})"
-          case AppNatToNat(f, x) =>
-            s"(natNatApp ${reggvolve(f, s)} ${reggvolve(x, s)})"
-          case Lambda(e) =>
-            val s2 = s.exprShift();
-            s"(lam ${reggvolve(e, s2)})"
-          case NatLambda(e) =>
-            val s2 = s.natShift();
-            s"(natLam ${reggvolve(e, s2)})"
-          case DataLambda(e) =>
-            val s2 = s.dataShift();
-            s"(dataLam ${reggvolve(e, s2)})"
-          case AddrLambda(e) =>
-            val s2 = s.addrShift();
-            s"(addrLam ${reggvolve(e, s2)})"
-          case LambdaNatToNat(e) =>
-            val s2 = s.natNatShift();
-            s"(natNatLam ${reggvolve(e, s2)})"
+          case Var(index)        => s"%e${index}"
+          case App(f, e)         => s"(app ${reggvolve(f)} ${reggvolve(e)})"
+          case NatApp(f, x)      => s"(natApp ${reggvolve(f)} ${reggvolve(x)})"
+          case DataApp(f, x)     => s"(dataApp ${reggvolve(f)} ${reggvolve(x)})"
+          case AddrApp(f, x)     => s"(addrApp ${reggvolve(f)} ${reggvolve(x)})"
+          case AppNatToNat(f, x) => s"(natNatApp ${reggvolve(f)} ${reggvolve(x)})"
+          case Lambda(e)         => s"(lam ${reggvolve(e)})"
+          case NatLambda(e)      => s"(natLam ${reggvolve(e)})"
+          case DataLambda(e)     => s"(dataLam ${reggvolve(e)})"
+          case AddrLambda(e)     => s"(addrLam ${reggvolve(e)})"
+          case LambdaNatToNat(e) => s"(natNatLam ${reggvolve(e)})"
           case Literal(d) =>
             import rise.core.semantics._
 
@@ -252,24 +279,20 @@ object Reggvolution {
               case IntData(i)      => i.toString() // s"Integer($i)"
               case FloatData(f)    => f.toString() // s"Float($f)"
               case DoubleData(d)   => d.toString() // s"Double($d)"
-              case _ => throw new Exception(s"not supporting literal $d yet")
+              case _               => throw new Exception(s"not supporting literal $d yet")
             }
-          case NatLiteral(n) => reggvolve(n, s)
-          case IndexLiteral(i, n) =>
-            s"(idxL ${reggvolve(i, s)} ${reggvolve(n, s)})"
-          // case IndexLiteral(i, n) =>
-          //   noTyApp(sym("idxL"), List(i, n).map(reggvolve(_, s)))
-          case Primitive(p)      => p.name
-          case Composition(f, g) => ???
+          case NatLiteral(n)      => reggvolve(n)
+          case IndexLiteral(i, n) => s"(idxL ${reggvolve(i)} ${reggvolve(n)})"
+          case Primitive(p)       => p.name
+          case Composition(f, g)  => ???
         }
     }
-    val t = reggvolve(pat.t, s)
-    // s"TypeOf([$e, $t])"
+    val t = reggvolve(pat.t)
     s"(typeOf $e $t)"
 
   }
 
-  def reggvolve(ty: TypePattern, s: FShift): String = {
+  def reggvolve(ty: TypePattern): String = {
     ty match {
       case TypePatternVar(index)     => s"?t${index}"
       case DataTypePatternVar(index) => s"?dt${index}"
@@ -278,79 +301,58 @@ object Reggvolution {
       case TypePatternNode(n) =>
         n match {
           case dt: DataTypeNode[_, _] =>
-            reggvolve(rise.eqsat.DataTypePatternNode(dt), s)
-          case FunType(a, b) =>
-            s"(fun ${reggvolve(a, s)} ${reggvolve(b, s)})"
-          // noTyApp(sym("fun"), List(a, b).map(reggvolve(_, s)))
+            reggvolve(rise.eqsat.DataTypePatternNode(dt))
+          case FunType(a, b)      => s"(fun ${reggvolve(a)} ${reggvolve(b)})"
+          case NatFunType(t)      => s"(natFun ${reggvolve(t)})"
+          case DataFunType(t)     => s"(dataFun ${reggvolve(t)})"
+          case AddrFunType(t)     => s"(addrFun ${reggvolve(t)})"
+          case NatToNatFunType(t) => s"(natNatFun ${reggvolve(t)})"
           // TODO: do we need to remember the arg kind as a type ?
-          case NatFunType(t) =>
-            // val s2 = s.natShift()
-            s"(natFun ${reggvolve(t, s)})"
-          case DataFunType(t) =>
-            // val s2 = s.dataShift();
-            s"(dataFun ${reggvolve(t, s)})"
-          case AddrFunType(t) =>
-            // val s2 = s.addrShift();
-            s"(addrFun ${reggvolve(t, s)})"
-          case NatToNatFunType(t) =>
-            // val s2 = s.natNatShift();
-            s"(natNatFun ${reggvolve(t, s)})"
         }
       // FIXME: this construct is redundant ???
-      case dtn: DataTypePatternNode => reggvolve(dtn, s)
+      case dtn: DataTypePatternNode => reggvolve(dtn)
     }
   }
 
-  def reggvolve(n: NatPattern, s: FShift): String = {
+  def reggvolve(n: NatPattern): String = {
     n match {
       case NatPatternVar(index) => s"?n${index}"
       case NatPatternAny        => s"?nAny${nextAny()}"
       case NatPatternNode(n) =>
         n match {
-          case NatVar(index) => s"%n${s.nat(index)}"
-          case NatCst(value) => value.toString()
-          case NatNegInf     => ???
-          case NatPosInf     => ???
-          case NatAdd(a, b) => s"(natAdd ${reggvolve(a, s)} ${reggvolve(b, s)})"
-          //  noTyApp(sym("add"), List(a, b).map(reggvolve(_, s)))
-          case NatMul(a, b) => s"(natMul ${reggvolve(a, s)} ${reggvolve(b, s)})"
-          //  noTyApp(sym("mul"), List(a, b).map(reggvolve(_, s)))
-          case NatPow(a, b) => s"(natPow ${reggvolve(a, s)} ${reggvolve(b, s)})"
-          //  noTyApp(sym("pow"), List(a, b).map(reggvolve(_, s)))
-          case NatMod(a, b) => s"(natMod ${reggvolve(a, s)} ${reggvolve(b, s)})"
-          //  noTyApp(sym("mod"), List(a, b).map(reggvolve(_, s)))
-          case NatIntDiv(a, b) =>
-            s"(natFloorDiv ${reggvolve(a, s)} ${reggvolve(b, s)})"
-          //  noTyApp(sym("floorDiv"), List(a, b).map(reggvolve(_, s)))
+          case NatVar(index)     => s"%n${index}"
+          case NatCst(value)     => value.toString()
+          case NatNegInf         => ???
+          case NatPosInf         => ???
+          case NatAdd(a, b)      => s"(natAdd ${reggvolve(a)} ${reggvolve(b)})"
+          case NatMul(a, b)      => s"(natMul ${reggvolve(a)} ${reggvolve(b)})"
+          case NatPow(a, b)      => s"(natPow ${reggvolve(a)} ${reggvolve(b)})"
+          case NatMod(a, b)      => s"(natMod ${reggvolve(a)} ${reggvolve(b)})"
+          case NatIntDiv(a, b)   => s"(natFloorDiv ${reggvolve(a)} ${reggvolve(b)})"
           case NatToNatApp(f, n) => ???
         }
     }
   }
 
-  def reggvolve(dty: DataTypePatternNode, s: FShift): String = {
+  def reggvolve(dty: DataTypePatternNode): String = {
     dty.n match {
-      case DataTypeVar(index) => s"%d${s.data(index)}"
+      case DataTypeVar(index) => s"%d${index}"
       case ScalarType(s)      => s.toString()
       case NatType            => "natT"
-      case IndexType(n)       => s"(idxT ${reggvolve(n, s)})"
-      // noTyApp(sym("idxT"), List(reggvolve(n, s)))
-      case PairType(dt1, dt2) =>
-        s"(pairT ${reggvolve(dt1, s)} ${reggvolve(dt2, s)})"
-      //  noTyApp(sym("pairT"), List(dt1, dt2).map(reggvolve(_, s)))
-      case ArrayType(n, et) => s"(arrT ${reggvolve(n, s)} ${reggvolve(et, s)})"
-      // noTyApp(sym("arrT"), List(reggvolve(n, s), reggvolve(et, s)))
-      case VectorType(n, et) => s"(vecT ${reggvolve(n, s)} ${reggvolve(et, s)})"
-      //  noTyApp(sym("vecT"), List(reggvolve(n, s), reggvolve(et, s)))
+      case IndexType(n)       => s"(idxT ${reggvolve(n)})"
+      case PairType(dt1, dt2) => s"(pairT ${reggvolve(dt1)} ${reggvolve(dt2)})"
+      case ArrayType(n, et)   => s"(arrT ${reggvolve(n)} ${reggvolve(et)})"
+      case VectorType(n, et)  => s"(vecT ${reggvolve(n)} ${reggvolve(et)})"
     }
   }
 
-  def reggvolve(a: AddressPattern, s: FShift): String = {
+  def reggvolve(a: AddressPattern): String = {
     a match {
       case AddressPatternVar(index) => s"?a${index}"
       case AddressPatternAny        => s"?aAny${nextAny()}"
       case AddressPatternNode(n) =>
         n match {
-          case AddressVar(index) => s"%a${s.addr(index)}"
+          case AddressVar(index) => s"%a${index}"
           case Global            => "global"
           case Local             => "local"
           case Private           => "private"
@@ -359,82 +361,8 @@ object Reggvolution {
     }
   }
 
-  def reggvolve(n: NatToNatNode[NatPattern], s: FShift): String = {
+  def reggvolve(n: NatToNatNode[NatPattern]): String = {
     ???
   }
 
-}
-
-class FShift(
-    var expr: Int => Int,
-    var nat: Int => Int,
-    var data: Int => Int,
-    var addr: Int => Int,
-    var natNat: Int => Int
-) {
-  private def cond(s: Int => Int): Int => Int = { i =>
-    {
-      var x = s(i)
-      if (i < x) x + 1 else i
-    }
-
-  }
-
-  def this() = {
-    this(
-      Function.const(0: Int),
-      Function.const(0: Int),
-      Function.const(0: Int),
-      Function.const(0: Int),
-      Function.const(0: Int)
-    )
-  }
-
-  def exprShift(): FShift = {
-
-    new FShift(
-      cond(this.expr),
-      this.nat,
-      this.data,
-      this.addr,
-      this.natNat
-    )
-  }
-
-  def natShift(): FShift = {
-    new FShift(
-      this.expr,
-      cond(this.nat),
-      this.data,
-      this.addr,
-      this.natNat
-    )
-  }
-  def dataShift(): FShift = {
-    new FShift(
-      this.expr,
-      this.nat,
-      cond(this.data),
-      this.addr,
-      this.natNat
-    )
-  }
-  def addrShift(): FShift = {
-    new FShift(
-      this.expr,
-      this.nat,
-      this.data,
-      cond(this.addr),
-      this.natNat
-    )
-  }
-  def natNatShift(): FShift = {
-    new FShift(
-      this.expr,
-      this.nat,
-      this.data,
-      this.addr,
-      cond(this.natNat)
-    )
-  }
 }
