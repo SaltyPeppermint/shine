@@ -98,7 +98,7 @@ object Reggvolution {
       assert(s1 != s2)
       val cutoff = s1
       val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3, s2._4 - s1._4, s2._5 - s1._5)
-      s"""Shifted::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+      s"""Shifted::new("${pv1}", "${pv2}", ${shift}.into(), ${cutoff}.into(), ${applier})"""
     }
 
     def patMkShiftCheck(s1: Expr.Shift, pv1: PatternVar)(s2: Expr.Shift, pv2: PatternVar)(
@@ -108,7 +108,7 @@ object Reggvolution {
       assert(s1 != s2)
       val cutoff = s1
       val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3, s2._4 - s1._4, s2._5 - s1._5)
-      s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+      s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}.into(), ${cutoff}.into(), ${applier})"""
     }
 
     def natPatMkShift(s1: Nat.Shift, pv1: NatPatternVar)(s2: Nat.Shift, pv2: NatPatternVar)(
@@ -117,7 +117,7 @@ object Reggvolution {
       assert(s1 != s2)
       val cutoff = s1
       val shift = (s2._1 - s1._1, s2._2 - s1._2)
-      s"""Shifted::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+      s"""Shifted::new("${pv1}", "${pv2}", ${shift}.into(), ${cutoff}.into(), ${applier})"""
     }
 
     def natPatMkShiftCheck(s1: Nat.Shift, pv1: NatPatternVar)(s2: Nat.Shift, pv2: NatPatternVar)(
@@ -126,7 +126,7 @@ object Reggvolution {
       assert(s1 != s2)
       val cutoff = s1
       val shift = (s2._1 - s1._1, s2._2 - s1._2)
-      s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+      s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}.into(), ${cutoff}.into(), ${applier})"""
     }
 
     def dataTypePatMkShift(
@@ -136,7 +136,7 @@ object Reggvolution {
       assert(s1 != s2)
       val cutoff = s1
       val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3)
-      s"""Shifted::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+      s"""Shifted::new("${pv1}", "${pv2}", ${shift}.into(), ${cutoff}.into(), ${applier})"""
     }
 
     def dataTypePatMkShiftCheck(
@@ -146,7 +146,7 @@ object Reggvolution {
       assert(s1 != s2)
       val cutoff = s1
       val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3)
-      s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+      s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}.into(), ${cutoff}.into(), ${applier})"""
     }
 
     def typePatMkShift(s1: Type.Shift, pv1: TypePatternVar)(s2: Type.Shift, pv2: TypePatternVar)(
@@ -155,7 +155,7 @@ object Reggvolution {
       assert(s1 != s2)
       val cutoff = s1
       val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3)
-      s"""Shifted::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+      s"""Shifted::new("${pv1}", "${pv2}", ${shift}.into(), ${cutoff}.into(), ${applier})"""
     }
 
     def typePatMkShiftCheck(
@@ -165,7 +165,7 @@ object Reggvolution {
       assert(s1 != s2)
       val cutoff = s1
       val shift = (s2._1 - s1._1, s2._2 - s1._2, s2._3 - s1._3)
-      s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}, ${cutoff}, ${applier})"""
+      s"""ShiftedCheck::new("${pv1}", "${pv2}", ${shift}.into(), ${cutoff}.into(), ${applier})"""
     }
 
     def addrPatMkShift(
