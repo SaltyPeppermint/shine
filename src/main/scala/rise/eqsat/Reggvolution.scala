@@ -274,12 +274,12 @@ object Reggvolution {
             import rise.core.semantics._
 
             d match {
-              case BoolData(true)  => "true"
-              case BoolData(false) => "false"
-              case IntData(i)      => i.toString() // s"Integer($i)"
-              case FloatData(f)    => f.toString() // s"Float($f)"
-              case DoubleData(d)   => d.toString() // s"Double($d)"
-              case _               => throw new Exception(s"not supporting literal $d yet")
+              case BoolData(true)    => "true"
+              case BoolData(false)   => "false"
+              case IntData(value)    => s"${value}i" // s"Integer($value)"
+              case FloatData(value)  => s"${value}f" // s"Float($value)"
+              case DoubleData(value) => s"${value}d" // s"Double($value)"
+              case _                 => throw new Exception(s"not supporting literal $d yet")
             }
           case NatLiteral(n)      => reggvolve(n)
           case IndexLiteral(i, n) => s"(idxL ${reggvolve(i)} ${reggvolve(n)})"
@@ -321,7 +321,7 @@ object Reggvolution {
       case NatPatternNode(n) =>
         n match {
           case NatVar(index)     => s"%n${index}"
-          case NatCst(value)     => value.toString()
+          case NatCst(value)     => s"${value}n"
           case NatNegInf         => ???
           case NatPosInf         => ???
           case NatAdd(a, b)      => s"(natAdd ${reggvolve(a)} ${reggvolve(b)})"
