@@ -199,7 +199,7 @@ object Reggvolution {
       s"""ComputeNat::new("${pv}", "${vp}", ${applier})"""
     }
 
-    val searcher: String = s""""${reggvolve(lhsPat)}""""
+    val searcher: String = s"""RisePredicate::new(pat("${reggvolve(lhsPat)}"))"""
     val param = parameters.foldRight((a: String) => a) { case (c, acc) =>
       c match {
         case NotFreeIn(notFree, in) =>
@@ -225,7 +225,7 @@ object Reggvolution {
           (a: String) => s"""VectorizeScalarFun::new("${fPV}", "${nPV}", "${fVPV}", ${a})"""
       }
     }
-    val rhsPatApplier = s"""pat("${reggvolve(rhsPat)}")"""
+    val rhsPatApplier = s"""DTCheck::new(pat("${reggvolve(rhsPat)}"))"""
     val shiftPV = shiftAppliers(patVars, patMkShift, patMkShiftCheck)
     val shiftNPV = shiftAppliers(natPatVars, natPatMkShift, natPatMkShiftCheck)
     val shiftDTPV = shiftAppliers(dataTypePatVars, dataTypePatMkShift, dataTypePatMkShiftCheck)
@@ -251,7 +251,7 @@ object Reggvolution {
     assert(allIsShiftCoherent(typePatVars))
     assert(allIsShiftCoherent(addrPatVars))
 
-    s"""rewrite!("${name}"; ${searcher} => { ${applier} }),"""
+    s"""rewrite!("${name}"; { ${searcher} } => { ${applier} }),"""
   }
 
   def reggvolve(pat: Pattern): String = {
@@ -277,8 +277,8 @@ object Reggvolution {
               case BoolData(true)    => "true"
               case BoolData(false)   => "false"
               case IntData(value)    => s"${value}i" // s"Integer($value)"
-              case FloatData(value)  => s"${value}f" // s"Float($value)"
-              case DoubleData(value) => s"${value}d" // s"Double($value)"
+              case FloatData(value)  => s"${value}" // s"Float($value)"
+              case DoubleData(value) => s"${value}" // s"Double($value)"
               case _                 => throw new Exception(s"not supporting literal $d yet")
             }
           case NatLiteral(n)      => reggvolve(n)
@@ -295,9 +295,9 @@ object Reggvolution {
   def reggvolve(ty: TypePattern): String = {
     ty match {
       case TypePatternVar(index)     => s"?t${index}"
-      case DataTypePatternVar(index) => s"?dt${index}"
+      case DataTypePatternVar(index) => s"?d${index}"
       case TypePatternAny            => s"?tAny${nextAny()}"
-      case DataTypePatternAny        => s"?dtAny${nextAny()}"
+      case DataTypePatternAny        => s"?dAny${nextAny()}"
       case TypePatternNode(n) =>
         n match {
           case dt: DataTypeNode[_, _] =>
