@@ -19,8 +19,7 @@ object EGraph {
 }
 
 sealed trait PendingAnalysis
-case class PendingMakeAnalysis(enode: ENode, id: EClassId, t: TypeId)
-    extends PendingAnalysis
+case class PendingMakeAnalysis(enode: ENode, id: EClassId, t: TypeId) extends PendingAnalysis
 case class PendingMergeAnalysis(
     a: EClassId,
     aParents: Seq[(ENode, EClassId)],
@@ -355,13 +354,7 @@ class EGraph(
   }
 
   private def rebuildClasses(): Int = {
-    import Node.{
-      ordering,
-      eclassIdOrdering,
-      natIdOrdering,
-      dataTypeIdOrdering,
-      addressOrdering
-    }
+    import Node.{ordering, eclassIdOrdering, natIdOrdering, dataTypeIdOrdering, addressOrdering}
     classesByMatch.values.foreach(ids => ids.clear())
 
     var trimmed = 0

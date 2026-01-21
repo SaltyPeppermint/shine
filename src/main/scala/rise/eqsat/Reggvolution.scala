@@ -245,7 +245,7 @@ object Reggvolution {
           (a: String) => s"""VectorizeScalarFun::new("${fPV}", "${nPV}", "${fVPV}", ${a})"""
       }
     }
-    val rhsPatApplier = s"""DTCheck::new(pat("${reggvolve(rhsPat)}"))"""
+    val rhsPatApplier = s"""pat("${reggvolve(rhsPat)}")"""
     val shiftPV = shiftAppliers(patVars, patMkShift, patMkShiftCheck)
     val shiftNPV = shiftAppliers(natPatVars, natPatMkShift, natPatMkShiftCheck)
     val shiftDTPV = shiftAppliers(dataTypePatVars, dataTypePatMkShift, dataTypePatMkShiftCheck)
@@ -271,7 +271,7 @@ object Reggvolution {
     assert(allIsShiftCoherent(typePatVars))
     assert(allIsShiftCoherent(addrPatVars))
 
-    s"""rewrite!("${name}"; { ${searcher} } => { ${applier} }),"""
+    s"""rewrite!("${name}"; { ${searcher} } => { DTCheck::new(${applier}) }),"""
   }
 
   def reggvolve(pat: Pattern): String = {
