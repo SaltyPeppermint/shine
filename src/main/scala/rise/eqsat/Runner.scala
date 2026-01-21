@@ -29,8 +29,8 @@ object Runner {
   )
 }
 
-/** Facilitates searching for rewrites using an [[Egraph]]. This technique is
-  * called "equality saturation" in general.
+/** Facilitates searching for rewrites using an [[Egraph]]. This technique is called "equality
+  * saturation" in general.
   * @see
   *   [[https://docs.rs/egg/0.6.0/egg/struct.Runner.html]]
   */
@@ -122,7 +122,8 @@ class Runner(
       rebuildTime = 0,
       totalTime = 0,
       nRebuilds = 0,
-      memStats = util.memStats()
+      memStats = util.memStats(),
+      serEGraph = SerEGraph.from_egraph(egraph)
     )
     // println(iteration0)
     iterations += iteration0
@@ -167,6 +168,7 @@ class Runner(
       if (iterationCount() >= iterLimit) {
         stopReasons += IterationLimit(iterationCount())
       }
+
     }
 
     end()
@@ -242,7 +244,8 @@ class Runner(
       rebuildTime = time3 - time2,
       totalTime = time3 - time0,
       nRebuilds = nRebuilds,
-      memStats = memStats1 max memStats3
+      memStats = memStats1 max memStats3,
+      serEGraph = SerEGraph.from_egraph(egraph)
     )
   }
 }
@@ -258,7 +261,8 @@ class Iteration(
     val rebuildTime: Long,
     val totalTime: Long,
     val nRebuilds: Int,
-    val memStats: util.MemoryStats
+    val memStats: util.MemoryStats,
+    val serEGraph: SerEGraph
 ) {
   override def toString: String = {
     s"Iteration:\n" +

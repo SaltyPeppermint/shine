@@ -306,7 +306,7 @@ object mm {
     GuidedSearch
       .init()
       .withFilter(StandardConstraintsPredicate)
-      .run(start, steps)
+      .run(start, steps, "baseline")
   }
 
   val runnerTrans: Runner => Runner = r =>
@@ -379,7 +379,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "blocking_T")
   }
 
   private val blocking_4_sketches = Seq(
@@ -436,7 +436,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "blocking_TTTT")
   }
 
   private def blocking_SRSR(
@@ -456,7 +456,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "blocking_SRSR")
   }
 
   private def blocking_TT(
@@ -476,7 +476,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "blocking_TT")
   }
 
   private def blocking_SR(
@@ -497,7 +497,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "blocking_SR")
   }
 
   private val lower_1 =
@@ -532,7 +532,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "vectorization_SRL")
   }
 
   private def vectorization(): GuidedSearch.Result = {
@@ -550,7 +550,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "vectorization")
   }
 
   private val lower_2 =
@@ -584,7 +584,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "loopPerm_SRL")
   }
 
   private def loopPerm(): GuidedSearch.Result = {
@@ -601,7 +601,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "loopPerm")
   }
 
   val store =
@@ -675,7 +675,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "arrayPacking_SRCL")
   }
 
   private def arrayPacking(): GuidedSearch.Result = {
@@ -692,7 +692,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "arrayPacking")
   }
 
   private val lower_4 =
@@ -743,7 +743,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "cacheBlocks_SRCL")
   }
 
   private def cacheBlocks(): GuidedSearch.Result = {
@@ -761,7 +761,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "cacheBlocks")
   }
 
   val lower_5 =
@@ -812,7 +812,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "parallel_SRCL")
   }
 
   private def parallel(): GuidedSearch.Result = {
@@ -830,7 +830,7 @@ object mm {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps)
+      .run(start, steps, "parallel")
   }
 
   def main(args: Array[String]): Unit = {

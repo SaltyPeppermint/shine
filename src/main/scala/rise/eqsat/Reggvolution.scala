@@ -531,12 +531,12 @@ case class SerENode(node: String, children: Seq[String])
 
 object SerId {
   def p(id: TypeId): String = id match {
-    case DataTypeId(i)    => s"#d$id"
-    case NotDataTypeId(i) => s"#t$id"
+    case DataTypeId(i)    => s"$id"
+    case NotDataTypeId(i) => s"$id"
   }
-  def p(id: DataTypeId): String = s"#d$id"
-  def p(id: NatId): String = s"#n$id"
-  def p(id: EClassId): String = s"#e$id"
+  def p(id: DataTypeId): String = s"$id"
+  def p(id: NatId): String = s"$id"
+  def p(id: EClassId): String = s"$id"
 }
 
 object SerializedTerm {

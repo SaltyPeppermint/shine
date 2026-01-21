@@ -39,8 +39,7 @@ object GuidedSearch {
   }
 
   // TODO: accept normal form
-  case class BeamExtractor(beamSize: Int, costFunction: CostFunction[_])
-      extends Extractor {
+  case class BeamExtractor(beamSize: Int, costFunction: CostFunction[_]) extends Extractor {
     override def extract(
         sketch: Sketch,
         egraph: EGraph,
@@ -127,7 +126,17 @@ class GuidedSearch(
   ): GuidedSearch.Result =
     run(Expr.fromNamed(start), steps)
 
-  def run(start: Expr, steps: Seq[GuidedSearch.Step]): GuidedSearch.Result = {
+  def run(
+      start: rise.core.Expr,
+      steps: Seq[GuidedSearch.Step],
+      runName: String
+  ): GuidedSearch.Result =
+    run(Expr.fromNamed(start), steps, runName)
+
+  def run(start: Expr, steps: Seq[GuidedSearch.Step]): GuidedSearch.Result =
+    run(start, steps, "NONAME")
+
+  def run(start: Expr, steps: Seq[GuidedSearch.Step], runName: String): GuidedSearch.Result = {
     val stats = Vec.empty[GuidedSearch.Stats]
 
     val startTime = System.nanoTime()
@@ -200,12 +209,10 @@ class GuidedSearch(
           totalTime = initializeTime + growTime + extractionTime,
           iterations = runner.iterationCount(),
           normRewriteCount = normRewriteCount,
-          rewriteCount =
-            runner.iterations.map(_.applied.values.map(_.toLong).sum).sum,
+          rewriteCount = runner.iterations.map(_.applied.values.map(_.toLong).sum).sum,
           egraphNodes = runner.iterations.last.egraphNodes,
           egraphClasses = runner.iterations.last.egraphClasses,
-          memoryStats =
-            runner.iterations.iterator.map(_.memStats).reduce(_ max _),
+          memoryStats = runner.iterations.iterator.map(_.memStats).reduce(_ max _),
           beam = newBeam
         )
         if (found) {
@@ -214,6 +221,9 @@ class GuidedSearch(
           runner.printReport()
           runner.iterations.foreach(println)
           return Seq() // could not reach sketch
+        }
+        runner.iterations.zipWithIndex.foreach { case (iter, i) =>
+          iter.serEGraph.toFile(s"json/ser_egraph_root_${rootId.i}_${runName}_$i.json")
         }
 
         rec(s + 1, newBeam)
