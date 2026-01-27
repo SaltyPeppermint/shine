@@ -279,7 +279,7 @@ object Reggvolution {
       case PatternVar(index) => s"?${index}"
       case PatternNode(node) =>
         node match {
-          case Var(index)        => s"%e${index}"
+          case Var(index)        => s"$$e${index}"
           case App(f, e)         => s"(app ${reggvolve(f)} ${reggvolve(e)})"
           case NatApp(f, x)      => s"(natApp ${reggvolve(f)} ${reggvolve(x)})"
           case DataApp(f, x)     => s"(dataApp ${reggvolve(f)} ${reggvolve(x)})"
@@ -340,7 +340,7 @@ object Reggvolution {
       case NatPatternAny        => s"?nAny${nextAny()}"
       case NatPatternNode(n) =>
         n match {
-          case NatVar(index)     => s"%n${index}"
+          case NatVar(index)     => s"$$n${index}"
           case NatCst(value)     => s"${value}n"
           case NatNegInf         => ???
           case NatPosInf         => ???
@@ -356,7 +356,7 @@ object Reggvolution {
 
   def reggvolve(dty: DataTypePatternNode): String = {
     dty.n match {
-      case DataTypeVar(index) => s"%d${index}"
+      case DataTypeVar(index) => s"$$d${index}"
       case ScalarType(s)      => s.toString()
       case NatType            => "natT"
       case IndexType(n)       => s"(idxT ${reggvolve(n)})"
@@ -372,7 +372,7 @@ object Reggvolution {
       case AddressPatternAny        => s"?aAny${nextAny()}"
       case AddressPatternNode(n) =>
         n match {
-          case AddressVar(index) => s"%a${index}"
+          case AddressVar(index) => s"$$a${index}"
           case Global            => "global"
           case Local             => "local"
           case Private           => "private"
@@ -427,7 +427,7 @@ object SerEGraph {
 
   private def nodeLabel(n: ENode): String = {
     n match {
-      case Var(index)        => s"%e$index"
+      case Var(index)        => s"$$e$index"
       case App(_, _)         => "app"
       case Lambda(_)         => "lam"
       case NatApp(_, _)      => "natApp"
@@ -493,7 +493,7 @@ object SerENode {
   implicit val ownerRw: ReadWriter[SerENode] = macroRW[SerENode]
 
   def parse(node: NatNode[NatId]): SerENode = node match {
-    case NatVar(index)     => SerENode(s"%n${index}", Seq.empty)
+    case NatVar(index)     => SerENode(s"$$n${index}", Seq.empty)
     case NatCst(value)     => SerENode(s"${value}n", Seq.empty)
     case NatNegInf         => ???
     case NatPosInf         => ???
@@ -506,7 +506,7 @@ object SerENode {
   }
 
   def parse(node: DataTypeNode[NatId, DataTypeId]): SerENode = node match {
-    case DataTypeVar(index) => SerENode(s"%d${index}", Seq.empty)
+    case DataTypeVar(index) => SerENode(s"$$d${index}", Seq.empty)
     case ScalarType(s)      => SerENode(s.toString(), Seq.empty)
     case NatType            => SerENode("natT", Seq.empty)
     case IndexType(n)       => SerENode("idxT", Seq(SerId.p(n)))
@@ -544,7 +544,7 @@ object SerializedTerm {
   // def dump()
 
   def parse(pat: Expr): TypedSerTerm = pat.node match {
-    case Var(index)        => TypedSerTerm(s"%e${index}", parse(pat.t), Seq.empty)
+    case Var(index)        => TypedSerTerm(s"$$e${index}", parse(pat.t), Seq.empty)
     case App(f, e)         => TypedSerTerm("app", parse(pat.t), Seq(parse(f), parse(e)))
     case NatApp(f, x)      => TypedSerTerm("natApp", parse(pat.t), Seq(parse(f), parse(x)))
     case DataApp(f, x)     => TypedSerTerm("dataApp", parse(pat.t), Seq(parse(f), parse(x)))
@@ -592,7 +592,7 @@ object SerializedTerm {
     // case NatPatternAny        => parse(s"?nAny")
     // case NatPatternNode(n) =>
     //   n match {
-    case NatVar(index)     => UnTypedSerTerm(s"%n${index}", Seq.empty)
+    case NatVar(index)     => UnTypedSerTerm(s"$$n${index}", Seq.empty)
     case NatCst(value)     => UnTypedSerTerm(s"${value}n", Seq.empty)
     case NatNegInf         => ???
     case NatPosInf         => ???
@@ -606,7 +606,7 @@ object SerializedTerm {
   }
 
   def parse(dty: rise.eqsat.DataType): UnTypedSerTerm = dty.node match {
-    case DataTypeVar(index) => UnTypedSerTerm(s"%d${index}", Seq.empty)
+    case DataTypeVar(index) => UnTypedSerTerm(s"$$d${index}", Seq.empty)
     case ScalarType(s)      => UnTypedSerTerm(s.toString(), Seq.empty)
     case NatType            => UnTypedSerTerm("natT", Seq.empty)
     case IndexType(n)       => UnTypedSerTerm("idxT", Seq(parse(n)))
@@ -617,7 +617,7 @@ object SerializedTerm {
   }
 
   def parse(a: Address): UnTypedSerTerm = a match {
-    case AddressVar(index) => UnTypedSerTerm(s"%a${index}", Seq.empty)
+    case AddressVar(index) => UnTypedSerTerm(s"$$a${index}", Seq.empty)
     case Global            => UnTypedSerTerm("global", Seq.empty)
     case Local             => UnTypedSerTerm("local", Seq.empty)
     case Private           => UnTypedSerTerm("private", Seq.empty)

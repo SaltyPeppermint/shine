@@ -186,7 +186,11 @@ class GuidedSearch(
             .run(egraph, filter, mergedRules, Seq(), Seq(rootId))
         )
         val found = runner.stopReasons.contains(Done)
-
+        runner.iterations.zipWithIndex.foreach { case (iter, i) =>
+          iter.serEGraph.toFile(
+            s"json/ser_egraph_${runName}_step_${s}_iteration_${i}_root_${rootId.i}.json"
+          )
+        }
         val (extractionTime, newBeam) = if (found) {
           util.time(step.extractor.extract(step.sketch, egraph, rootId))
         } else {
@@ -215,17 +219,13 @@ class GuidedSearch(
           memoryStats = runner.iterations.iterator.map(_.memStats).reduce(_ max _),
           beam = newBeam
         )
+
         if (found) {
           assert(newBeam.nonEmpty)
         } else {
           runner.printReport()
           runner.iterations.foreach(println)
           return Seq() // could not reach sketch
-        }
-        runner.iterations.zipWithIndex.foreach { case (iter, i) =>
-          iter.serEGraph.toFile(
-            s"json/ser_egraph_root_${rootId.i}_${runName}_phase_${s}_iteration_${i}.json"
-          )
         }
 
         rec(s + 1, newBeam)
