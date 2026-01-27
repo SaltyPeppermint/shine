@@ -223,7 +223,9 @@ class GuidedSearch(
           return Seq() // could not reach sketch
         }
         runner.iterations.zipWithIndex.foreach { case (iter, i) =>
-          iter.serEGraph.toFile(s"json/ser_egraph_root_${rootId.i}_${runName}_$i.json")
+          iter.serEGraph.toFile(
+            s"json/ser_egraph_root_${rootId.i}_${runName}_phase_${s}_iteration_${i}.json"
+          )
         }
 
         rec(s + 1, newBeam)

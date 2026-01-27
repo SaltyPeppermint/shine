@@ -459,7 +459,7 @@ object SerEGraph {
         }
       case NatLiteral(n)      => "nat"
       case IndexLiteral(_, _) => "idx"
-      case Primitive(p)       => p.toString()
+      case Primitive(p)       => p.toString().trim()
       case Composition(_, _)  => ">>"
     }
   }
