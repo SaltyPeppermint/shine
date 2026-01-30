@@ -336,6 +336,13 @@ object mm {
         )
       )
     )
+
+  // private val guides = GuideLoader.load("zs_guides.txt")
+  // private def guide(name: String): Sketch =
+  //   guides.getOrElse(name, throw new RuntimeException(s"Guide '$name' not found in zs_guides.txt"))
+
+  // private lazy val split = guide("split")
+
   private val reorder_1 =
     containsMap(
       m /^ cst(32),
@@ -364,120 +371,6 @@ object mm {
         )
       )
     )
-
-  private def blocking_T(tilingStep: GuidedSearch.Step): GuidedSearch.Result = {
-    val start = mm
-
-    val steps = Seq(
-      tilingStep withSketch reorder_1
-    )
-
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "blocking_T")
-  }
-
-  private val blocking_4_sketches = Seq(
-    containsMap(
-      m /^ cst(32),
-      containsMap(
-        cst(32),
-        containsMap(
-          n /^ cst(32),
-          containsMap(cst(32), containsReduceSeq(k, containsAddMul))
-        )
-      )
-    ),
-    containsMap(
-      m /^ cst(32),
-      containsMap(
-        n /^ cst(32),
-        containsMap(
-          cst(32),
-          containsMap(cst(32), containsReduceSeq(k, containsAddMul))
-        )
-      )
-    ),
-    containsMap(
-      m /^ cst(32),
-      containsMap(
-        n /^ cst(32),
-        containsMap(
-          cst(32),
-          containsMap(
-            cst(32),
-            containsReduceSeq(
-              k /^ cst(4),
-              containsReduceSeq(cst(4), containsAddMul)
-            )
-          )
-        )
-      )
-    ),
-    reorder_1
-  )
-
-  private def blocking_TTTT(
-      tilingStep: GuidedSearch.Step
-  ): GuidedSearch.Result = {
-    val start = mm
-
-    val steps = blocking_4_sketches.map(tilingStep.withSketch)
-
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "blocking_TTTT")
-  }
-
-  private def blocking_SRSR(
-      splitStep: GuidedSearch.Step,
-      reorderStep: GuidedSearch.Step
-  ): GuidedSearch.Result = {
-    val start = mm
-
-    val steps = Seq(splitStep, reorderStep, splitStep, reorderStep)
-      .zip(blocking_4_sketches)
-      .map { case (s, p) => s withSketch p }
-
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "blocking_SRSR")
-  }
-
-  private def blocking_TT(
-      tilingStep: GuidedSearch.Step
-  ): GuidedSearch.Result = {
-    val start = mm
-
-    val steps = Seq(
-      tilingStep withSketch split,
-      tilingStep withSketch reorder_1
-    )
-
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "blocking_TT")
-  }
 
   private def blocking_SR(
       splitStep: GuidedSearch.Step,
@@ -535,24 +428,6 @@ object mm {
       .run(start, steps, "vectorization_SRL")
   }
 
-  private def vectorization(): GuidedSearch.Result = {
-    val start = mm
-    // could start directly from blocking outcome
-
-    val steps = Seq(
-      (splitStepBENF compose reorderStepBENF compose loweringStep) withSketch lower_1
-    )
-
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "vectorization")
-  }
-
   private val lower_2 =
     containsMap(
       m /^ cst(32),
@@ -585,23 +460,6 @@ object mm {
       )
       .withRunnerTransform(runnerTrans)
       .run(start, steps, "loopPerm_SRL")
-  }
-
-  private def loopPerm(): GuidedSearch.Result = {
-    val start = mm
-
-    val steps = Seq(
-      (splitStepBENF compose reorderStepBENF compose loweringStep) withSketch lower_2
-    )
-
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "loopPerm")
   }
 
   val store =
@@ -678,23 +536,6 @@ object mm {
       .run(start, steps, "arrayPacking_SRCL")
   }
 
-  private def arrayPacking(): GuidedSearch.Result = {
-    val start = mm
-
-    val steps = Seq(
-      (splitStepBENF compose reorderStepBENF compose copyStep compose loweringStep) withSketch lower_3
-    )
-
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "arrayPacking")
-  }
-
   private val lower_4 =
     containsMap(
       m /^ cst(32),
@@ -744,24 +585,6 @@ object mm {
       )
       .withRunnerTransform(runnerTrans)
       .run(start, steps, "cacheBlocks_SRCL")
-  }
-
-  private def cacheBlocks(): GuidedSearch.Result = {
-    val start = mm
-    // val start = apps.tvmGemm.arrayPacking(mm).get
-
-    val steps = Seq(
-      (splitStepBENF compose reorderStepBENF compose copyStep compose loweringStep) withSketch lower_4
-    )
-
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "cacheBlocks")
   }
 
   val lower_5 =
@@ -815,26 +638,8 @@ object mm {
       .run(start, steps, "parallel_SRCL")
   }
 
-  private def parallel(): GuidedSearch.Result = {
-    val start = mm
-    // val start = apps.tvmGemm.arrayPacking(mm).get
-
-    val steps = Seq(
-      (splitStepBENF compose reorderStepBENF compose copyStep compose loweringStep) withSketch lower_5
-    )
-
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "parallel")
-  }
-
   def main(args: Array[String]): Unit = {
-    Reggvolve.init_rules()
+    // Reggvolve.init_rules()
     // val names = Set(args(0))
     // fs.filter { case (k, _) => names(k) }
 
@@ -864,7 +669,9 @@ object mm {
     val rs = fs.map { case (n, f) =>
       System.gc() // hint garbage collection to get more precise memory usage statistics
       println(s"---- running $n search")
-      (n, util.time(f()))
+      val (u, r) = util.time(f())
+      println(s"found goal: ${Expr.toNamed(r.exprs(0))}")
+      (n, (u, r))
     }
 
     throw new Exception("Reggvolution done")

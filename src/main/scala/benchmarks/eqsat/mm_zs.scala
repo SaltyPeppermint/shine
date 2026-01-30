@@ -98,6 +98,8 @@ object mm_zs {
     rules.transposeAroundMapMapF1M
   )
 
+  val tilingStepBENF = splitStepBENF compose reorderStepBENF
+
   val copyStep = GuidedSearch.Step.init(BENF) withRules Seq(
     rules.storeToMem,
     rules.splitJoin2(32),
@@ -273,30 +275,31 @@ object mm_zs {
     .withMemoryLimit(32L * 1024L * 1024L * 1024L)
        */
       .withNodeLimit(50_000_000)
+      .withIterationLimit(5)
 
-  // private val split =
-  //   containsMap(
-  //     m /^ cst(32),
-  //     containsMap(
-  //       cst(32),
-  //       containsMap(
-  //         n /^ cst(32),
-  //         containsMap(
-  //           cst(32),
-  //           containsReduceSeq(
-  //             k /^ cst(4),
-  //             containsReduceSeq(cst(4), containsAddMul)
-  //           )
-  //         )
-  //       )
-  //     )
-  //   )
+  private val split =
+    containsMap(
+      m /^ cst(32),
+      containsMap(
+        cst(32),
+        containsMap(
+          n /^ cst(32),
+          containsMap(
+            cst(32),
+            containsReduceSeq(
+              k /^ cst(4),
+              containsReduceSeq(cst(4), containsAddMul)
+            )
+          )
+        )
+      )
+    )
 
-  private lazy val guides = GuideLoader.load("zs_guides.txt")
-  private def guide(name: String): Sketch = guides.getOrElse(name,
-    throw new RuntimeException(s"Guide '$name' not found in zs_guides.txt"))
+  // private val guides = GuideLoader.load("zs_guides.txt")
+  // private def guide(name: String): Sketch =
+  //   guides.getOrElse(name, throw new RuntimeException(s"Guide '$name' not found in zs_guides.txt"))
 
-  private lazy val split = guide("split")
+  // private lazy val split = guide("split")
 
   private val reorder_1 =
     containsMap(
@@ -327,16 +330,10 @@ object mm_zs {
       )
     )
 
-  private def blocking_SR(
-      splitStep: GuidedSearch.Step,
-      reorderStep: GuidedSearch.Step
-  ): GuidedSearch.Result = {
+  private def blocking_SR_ZS(combinedStep: GuidedSearch.Step): GuidedSearch.Result = {
     val start = mm
 
-    val steps = Seq(
-      splitStep withSketch split,
-      reorderStep withSketch reorder_1
-    )
+    val steps = Seq(combinedStep withSketch reorder_1)
 
     GuidedSearch
       .init()
@@ -345,273 +342,296 @@ object mm_zs {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps, "blocking_SR")
+      .run(start, steps, "blocking_SR", true)
   }
 
-  private val lower_1 =
-    containsMap(
-      m /^ cst(32),
-      containsMap(
-        n /^ cst(32),
-        containsReduceSeq(
-          k /^ cst(4),
-          containsReduceSeq(
-            cst(4),
-            containsMap(cst(32), containsMap(cst(1), containsAddMulVec))
-          )
-        )
-      )
-    )
-
-  private def vectorization_SRL(): GuidedSearch.Result = {
+  private def blocking_SR_CHONK(combinedStep: GuidedSearch.Step): GuidedSearch.Result = {
     val start = mm
-    // could start directly from blocking outcome
 
-    val steps = Seq(
-      splitStepBENF withSketch split,
-      reorderStepBENF withSketch reorder_1,
-      loweringStep withSketch lower_1
-    )
+    val steps = Seq(combinedStep withSketch reorder_1)
 
     GuidedSearch
       .init()
       .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+        ArrayDimensionPredicate(6) && ASTSizePredicate(200) &&
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps, "vectorization_SRL")
+      .run(start, steps, "blocking_SR_CHONK")
   }
 
-  private val lower_2 =
-    containsMap(
-      m /^ cst(32),
-      containsMap(
-        n /^ cst(32),
-        containsReduceSeq(
-          k /^ cst(4),
-          containsMap(
-            cst(32),
-            containsReduceSeq(cst(4), containsMap(cst(1), containsAddMulVec))
-          )
-        )
-      )
-    )
+  // private val lower_1 =
+  //   containsMap(
+  //     m /^ cst(32),
+  //     containsMap(
+  //       n /^ cst(32),
+  //       containsReduceSeq(
+  //         k /^ cst(4),
+  //         containsReduceSeq(
+  //           cst(4),
+  //           containsMap(cst(32), containsMap(cst(1), containsAddMulVec))
+  //         )
+  //       )
+  //     )
+  //   )
 
-  private def loopPerm_SRL(): GuidedSearch.Result = {
-    val start = mm
+  // private def vectorization_SRL(): GuidedSearch.Result = {
+  //   val start = mm
+  //   // could start directly from blocking outcome
 
-    val steps = Seq(
-      splitStepBENF withSketch split,
-      reorderStepBENF withSketch reorder_2,
-      loweringStep withSketch lower_2
-    )
+  //   val steps = Seq(
+  //     splitStepBENF withSketch split,
+  //     reorderStepBENF withSketch reorder_1,
+  //     loweringStep withSketch lower_1
+  //   )
 
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "loopPerm_SRL")
-  }
+  //   GuidedSearch
+  //     .init()
+  //     .withFilter(
+  //       ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+  //         StandardConstraintsPredicate
+  //     )
+  //     .withRunnerTransform(runnerTrans)
+  //     .run(start, steps, "vectorization_SRL")
+  // }
 
-  val store =
-    containsMap(
-      m /^ cst(32),
-      containsMap(
-        n /^ cst(32),
-        containsReduceSeq(
-          k /^ cst(4),
-          containsMap(
-            cst(32),
-            containsReduceSeq(cst(4), containsMap(cst(32), containsAddMul))
-          )
-        )
-      ),
-      contains(
-        app(
-          let,
-          app(
-            toMem :: (`?t` ->: (n `.` (k `.` f32))),
-            containsMap(
-              n /^ cst(32),
-              containsMap(k, containsMap(cst(32) `.` f32, ?))
-            )
-          )
-        )
-      )
-    )
+  // private val lower_2 =
+  //   containsMap(
+  //     m /^ cst(32),
+  //     containsMap(
+  //       n /^ cst(32),
+  //       containsReduceSeq(
+  //         k /^ cst(4),
+  //         containsMap(
+  //           cst(32),
+  //           containsReduceSeq(cst(4), containsMap(cst(1), containsAddMulVec))
+  //         )
+  //       )
+  //     )
+  //   )
 
-  private val lower_3 =
-    containsMap(
-      m /^ cst(32),
-      containsMap(
-        n /^ cst(32),
-        containsReduceSeq(
-          k /^ cst(4),
-          containsMap(
-            cst(32),
-            containsReduceSeq(cst(4), containsMap(cst(1), containsAddMulVec))
-          )
-        )
-      ),
-      contains(
-        app(
-          let,
-          app(
-            toMem :: (`?t` ->: (n `.` (k `.` f32))),
-            containsMapPar(
-              n /^ cst(32),
-              containsMap(k, containsMap(cst(1) `.` vecT(cst(32), f32), ?))
-            )
-          )
-        )
-      )
-    )
+  // private def loopPerm_SRL(): GuidedSearch.Result = {
+  //   val start = mm
 
-  private def arrayPacking_SRCL(): GuidedSearch.Result = {
-    val start = mm
+  //   val steps = Seq(
+  //     splitStepBENF withSketch split,
+  //     reorderStepBENF withSketch reorder_2,
+  //     loweringStep withSketch lower_2
+  //   )
 
-    val steps = Seq(
-      splitStepBENF withSketch split,
-      reorderStepBENF withSketch reorder_2,
-      copyStep withSketch store,
-      loweringStep withSketch lower_3
-    )
+  //   GuidedSearch
+  //     .init()
+  //     .withFilter(
+  //       ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+  //         StandardConstraintsPredicate
+  //     )
+  //     .withRunnerTransform(runnerTrans)
+  //     .run(start, steps, "loopPerm_SRL")
+  // }
 
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "arrayPacking_SRCL")
-  }
+  // val store =
+  //   containsMap(
+  //     m /^ cst(32),
+  //     containsMap(
+  //       n /^ cst(32),
+  //       containsReduceSeq(
+  //         k /^ cst(4),
+  //         containsMap(
+  //           cst(32),
+  //           containsReduceSeq(cst(4), containsMap(cst(32), containsAddMul))
+  //         )
+  //       )
+  //     ),
+  //     contains(
+  //       app(
+  //         let,
+  //         app(
+  //           toMem :: (`?t` ->: (n `.` (k `.` f32))),
+  //           containsMap(
+  //             n /^ cst(32),
+  //             containsMap(k, containsMap(cst(32) `.` f32, ?))
+  //           )
+  //         )
+  //       )
+  //     )
+  //   )
 
-  private val lower_4 =
-    containsMap(
-      m /^ cst(32),
-      containsMap(
-        n /^ cst(32),
-        containsReduceSeq(
-          k /^ cst(4),
-          containsMap(
-            cst(32),
-            containsReduceSeqUnroll(
-              cst(4),
-              containsMap(cst(1), containsAddMulVec)
-            )
-          )
-        )
-      ),
-      contains(
-        app(
-          let,
-          app(
-            toMem :: (`?t` ->: (n `.` (k `.` f32))),
-            containsMapPar(
-              n /^ cst(32),
-              containsMap(k, containsMap(cst(1) `.` vecT(cst(32), f32), ?))
-            )
-          )
-        )
-      )
-    )
+  // private val lower_3 =
+  //   containsMap(
+  //     m /^ cst(32),
+  //     containsMap(
+  //       n /^ cst(32),
+  //       containsReduceSeq(
+  //         k /^ cst(4),
+  //         containsMap(
+  //           cst(32),
+  //           containsReduceSeq(cst(4), containsMap(cst(1), containsAddMulVec))
+  //         )
+  //       )
+  //     ),
+  //     contains(
+  //       app(
+  //         let,
+  //         app(
+  //           toMem :: (`?t` ->: (n `.` (k `.` f32))),
+  //           containsMapPar(
+  //             n /^ cst(32),
+  //             containsMap(k, containsMap(cst(1) `.` vecT(cst(32), f32), ?))
+  //           )
+  //         )
+  //       )
+  //     )
+  //   )
 
-  private def cacheBlocks_SRCL(): GuidedSearch.Result = {
-    val start = mm
-    // val start = apps.tvmGemm.arrayPacking(mm).get
+  // private def arrayPacking_SRCL(): GuidedSearch.Result = {
+  //   val start = mm
 
-    val steps = Seq(
-      splitStepBENF withSketch split,
-      reorderStepBENF withSketch reorder_2,
-      copyStep withSketch store,
-      loweringStep withSketch lower_4
-    )
+  //   val steps = Seq(
+  //     splitStepBENF withSketch split,
+  //     reorderStepBENF withSketch reorder_2,
+  //     copyStep withSketch store,
+  //     loweringStep withSketch lower_3
+  //   )
 
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "cacheBlocks_SRCL")
-  }
+  //   GuidedSearch
+  //     .init()
+  //     .withFilter(
+  //       ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+  //         StandardConstraintsPredicate
+  //     )
+  //     .withRunnerTransform(runnerTrans)
+  //     .run(start, steps, "arrayPacking_SRCL")
+  // }
 
-  val lower_5 =
-    containsMapPar(
-      m /^ cst(32),
-      containsMap(
-        n /^ cst(32),
-        containsReduceSeq(
-          k /^ cst(4),
-          containsMap(
-            cst(32),
-            containsReduceSeqUnroll(
-              cst(4),
-              containsMap(cst(1), containsAddMulVec)
-            )
-          )
-        )
-      ),
-      contains(
-        app(
-          let,
-          app(
-            toMem :: (`?t` ->: (n `.` (k `.` f32))),
-            containsMapPar(
-              n /^ cst(32),
-              containsMap(k, containsMap(cst(1) `.` vecT(cst(32), f32), ?))
-            )
-          )
-        )
-      )
-    )
+  // private val lower_4 =
+  //   containsMap(
+  //     m /^ cst(32),
+  //     containsMap(
+  //       n /^ cst(32),
+  //       containsReduceSeq(
+  //         k /^ cst(4),
+  //         containsMap(
+  //           cst(32),
+  //           containsReduceSeqUnroll(
+  //             cst(4),
+  //             containsMap(cst(1), containsAddMulVec)
+  //           )
+  //         )
+  //       )
+  //     ),
+  //     contains(
+  //       app(
+  //         let,
+  //         app(
+  //           toMem :: (`?t` ->: (n `.` (k `.` f32))),
+  //           containsMapPar(
+  //             n /^ cst(32),
+  //             containsMap(k, containsMap(cst(1) `.` vecT(cst(32), f32), ?))
+  //           )
+  //         )
+  //       )
+  //     )
+  //   )
 
-  def parallel_SRCL(): GuidedSearch.Result = {
-    val start = mm
-    // val start = apps.tvmGemm.arrayPacking(mm).get
+  // private def cacheBlocks_SRCL(): GuidedSearch.Result = {
+  //   val start = mm
+  //   // val start = apps.tvmGemm.arrayPacking(mm).get
 
-    val steps = Seq(
-      splitStepBENF withSketch split,
-      reorderStepBENF withSketch reorder_2,
-      copyStep withSketch store,
-      loweringStep withSketch lower_5
-    )
+  //   val steps = Seq(
+  //     splitStepBENF withSketch split,
+  //     reorderStepBENF withSketch reorder_2,
+  //     copyStep withSketch store,
+  //     loweringStep withSketch lower_4
+  //   )
 
-    GuidedSearch
-      .init()
-      .withFilter(
-        ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
-          StandardConstraintsPredicate
-      )
-      .withRunnerTransform(runnerTrans)
-      .run(start, steps, "parallel_SRCL")
-  }
+  //   GuidedSearch
+  //     .init()
+  //     .withFilter(
+  //       ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+  //         StandardConstraintsPredicate
+  //     )
+  //     .withRunnerTransform(runnerTrans)
+  //     .run(start, steps, "cacheBlocks_SRCL")
+  // }
+
+  // val lower_5 =
+  //   containsMapPar(
+  //     m /^ cst(32),
+  //     containsMap(
+  //       n /^ cst(32),
+  //       containsReduceSeq(
+  //         k /^ cst(4),
+  //         containsMap(
+  //           cst(32),
+  //           containsReduceSeqUnroll(
+  //             cst(4),
+  //             containsMap(cst(1), containsAddMulVec)
+  //           )
+  //         )
+  //       )
+  //     ),
+  //     contains(
+  //       app(
+  //         let,
+  //         app(
+  //           toMem :: (`?t` ->: (n `.` (k `.` f32))),
+  //           containsMapPar(
+  //             n /^ cst(32),
+  //             containsMap(k, containsMap(cst(1) `.` vecT(cst(32), f32), ?))
+  //           )
+  //         )
+  //       )
+  //     )
+  //   )
+
+  // def parallel_SRCL(): GuidedSearch.Result = {
+  //   val start = mm
+  //   // val start = apps.tvmGemm.arrayPacking(mm).get
+
+  //   val steps = Seq(
+  //     splitStepBENF withSketch split,
+  //     reorderStepBENF withSketch reorder_2,
+  //     copyStep withSketch store,
+  //     loweringStep withSketch lower_5
+  //   )
+
+  //   GuidedSearch
+  //     .init()
+  //     .withFilter(
+  //       ArrayDimensionPredicate(6) && ASTSizePredicate(300) &&
+  //         StandardConstraintsPredicate
+  //     )
+  //     .withRunnerTransform(runnerTrans)
+  //     .run(start, steps, "parallel_SRCL")
+  // }
+
+  // private val guides = GuideLoader.load("zs_guides.txt")
+  // private def guide(name: String): Sketch =
+  //   guides.getOrElse(name, throw new RuntimeException(s"Guide '$name' not found in zs_guides.txt"))
 
   def main(args: Array[String]): Unit = {
-    // Reggvolve.init_rules()
-    // val names = Set(args(0))
-    // fs.filter { case (k, _) => names(k) }
 
     val fs = Seq(
-      "baseline" -> baseline _,
-      "blocking SR" -> { () => blocking_SR(splitStepBENF, reorderStepBENF) },
-      "vectorization SRL" -> vectorization_SRL _,
-      "loop-perm SRL" -> loopPerm_SRL _,
-      "array-packing SRCL" -> arrayPacking_SRCL _,
-      "cache-blocks SRCL" -> cacheBlocks_SRCL _,
-      "parallel SRCL" -> parallel_SRCL _
+      // "baseline" -> baseline _,
+      "blocking one guide" -> { () =>
+        blocking_SR_ZS(splitStepBENF compose reorderStepBENF)
+      },
+      "blocking SR CHONK" -> { () => blocking_SR_CHONK(splitStepBENF compose reorderStepBENF) }
+      // "vectorization SRL" -> vectorization_SRL _,
+      // "loop-perm SRL" -> loopPerm_SRL _,
+      // "array-packing SRCL" -> arrayPacking_SRCL _,
+      // "cache-blocks SRCL" -> cacheBlocks_SRCL _,
+      // "parallel SRCL" -> parallel_SRCL _
     )
     val rs = fs.map { case (n, f) =>
       System.gc() // hint garbage collection to get more precise memory usage statistics
       println(s"---- running $n search")
-      (n, util.time(f()))
+      val (u, r) = util.time(f())
+      println(s"found goal: ${Expr.toNamed(r.exprs(0))}")
+      (n, (u, r))
     }
+
+    throw new Exception("Reggvolution done")
 
     rs.foreach { case (n, (_, r)) =>
       r.exprs.headOption.foreach(codegen(n, _))
