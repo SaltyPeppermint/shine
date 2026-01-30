@@ -756,6 +756,8 @@ object SExprParser {
         App(parseExpr(f), parseExpr(e))
       case SList(Seq(SAtom("lam"), body)) =>
         Lambda(parseExpr(body))
+      case SList(Seq(SAtom("natApp"), f, x)) =>
+        NatApp(parseExpr(f), parseNat(x))
       case SList(Seq(SAtom("natLam"), body)) =>
         NatLambda(parseExpr(body))
       case SList(Seq(SAtom("dataLam"), body)) =>
@@ -764,8 +766,6 @@ object SExprParser {
         AddrLambda(parseExpr(body))
       case SList(Seq(SAtom("natNatLam"), body)) =>
         LambdaNatToNat(parseExpr(body))
-      case SList(Seq(SAtom("natApp"), f, x)) =>
-        NatApp(parseExpr(f), parseNat(x))
       case SList(Seq(SAtom("dataApp"), f, x)) =>
         DataApp(parseExpr(f), parseDataType(x))
       case SList(Seq(SAtom("addrApp"), f, x)) =>
@@ -1047,5 +1047,48 @@ object SExprParser {
       "makeDepPair" -> rcp.makeDepPair.primitive
     )
     primitives.get(name)
+  }
+}
+
+/** Loads guide sketches from a file.
+  *
+  * File format: one guide per line, each line is `guidename: sexpr` Lines starting with # are
+  * comments, empty lines are ignored.
+  */
+object GuideLoader {
+  def load(path: String): Map[String, Sketch] = {
+    val source = scala.io.Source.fromFile(path)
+    try {
+      source
+        .getLines()
+        .zipWithIndex
+        .flatMap { case (line, lineNum) =>
+          val trimmed = line.trim
+          if (trimmed.isEmpty || trimmed.startsWith("#")) {
+            None
+          } else {
+            val colonIdx = trimmed.indexOf(':')
+            if (colonIdx == -1) {
+              throw new RuntimeException(
+                s"Line ${lineNum + 1}: expected 'name: sexpr' format, no colon found"
+              )
+            }
+            val name = trimmed.take(colonIdx).trim
+            val sexprStr = trimmed.drop(colonIdx + 1).trim
+            if (name.isEmpty) {
+              throw new RuntimeException(s"Line ${lineNum + 1}: guide name cannot be empty")
+            }
+            if (sexprStr.isEmpty) {
+              throw new RuntimeException(s"Line ${lineNum + 1}: s-expression cannot be empty")
+            }
+            val expr = SExprParser.parse(sexprStr)
+            val sketch = Sketch.fromExpr(expr)
+            Some(name -> sketch)
+          }
+        }
+        .toMap
+    } finally {
+      source.close()
+    }
   }
 }
