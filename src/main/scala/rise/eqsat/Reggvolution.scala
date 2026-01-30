@@ -399,9 +399,9 @@ object SerEGraph {
     val classes = egraph.classes.toMap.map {
       case (id: EClassId, eclass: EClass) => {
         val children = eclass.nodes.map((node) => {
-          val children = node.children().map((child) => egraph.find(child))
           val label = nodeLabel(node)
-          SerENode(label, children.map((c) => SerId.p(egraph.find(c))).toSeq)
+          val children = nodeChildren(node)
+          SerENode(label, children)
         })
         (id.i, SerEClass(SerId.p(eclass.t), children.toSeq))
       }
@@ -434,10 +434,10 @@ object SerEGraph {
       case NatLambda(_)      => "natLam"
       case DataApp(_, _)     => "dataApp"
       case DataLambda(_)     => "dataLam"
-      case AddrApp(_, a)     => "addrApp"
-      case AddrLambda(_)     => "addrLam"
-      case AppNatToNat(_, _) => "natNatApp"
-      case LambdaNatToNat(_) => "natNatLam"
+      case AddrApp(f, e)     => throw new Exception("not dealing with addresses")
+      case AddrLambda(e)     => throw new Exception("not dealing with addresses")
+      case AppNatToNat(f, e) => throw new Exception("not dealing with nat2nat")
+      case LambdaNatToNat(e) => throw new Exception("not dealing with nat2nat")
       case Literal(d) =>
         d match {
           // case NatData(n)      =>
@@ -461,6 +461,28 @@ object SerEGraph {
       case IndexLiteral(_, _) => "idx"
       case Primitive(p)       => p.toString().trim()
       case Composition(_, _)  => ">>"
+    }
+  }
+
+  private def nodeChildren(n: ENode): Seq[String] = {
+    n match {
+
+      case App(f, e)         => Seq(SerId.p(f), SerId.p(e))
+      case Lambda(e)         => Seq(e).map(SerId.p)
+      case NatApp(f, e)      => Seq(SerId.p(f), SerId.p(e))
+      case NatLambda(e)      => Seq(e).map(SerId.p)
+      case DataApp(f, e)     => Seq(SerId.p(f), SerId.p(e))
+      case DataLambda(e)     => Seq(e).map(SerId.p)
+      case AddrApp(f, e)     => throw new Exception("not dealing with addresses")
+      case AddrLambda(e)     => throw new Exception("not dealing with addresses")
+      case AppNatToNat(f, e) => throw new Exception("not dealing with nat2nat")
+      case LambdaNatToNat(e) => throw new Exception("not dealing with nat2nat")
+
+      case NatLiteral(n) => Seq(n).map(SerId.p)
+
+      case IndexLiteral(x, y) => Seq(x, y).map(SerId.p)
+      case Composition(a, b)  => Seq(a, b).map(SerId.p)
+      case _                  => Seq.empty
     }
   }
 }
@@ -537,6 +559,7 @@ object SerId {
   def p(id: DataTypeId): String = s"$id"
   def p(id: NatId): String = s"$id"
   def p(id: EClassId): String = s"$id"
+  def p(id: Address): String = s"$id"
 }
 
 object SerializedTerm {
