@@ -638,3 +638,414 @@ case class UnTypedSerTerm(
     node: String,
     children: Seq[UnTypedSerTerm]
 ) extends SerializedTerm {}
+
+/** Parser for S-expressions representing Rise expressions.
+  *
+  * Example input: (typeOf (lam (typeOf $e0 f32)) (fun f32 f32))
+  *
+  * Grammar:
+  *   - (typeOf <expr> <type>) -> Expr with type
+  *   - (app <expr> <expr>) -> Application
+  *   - (lam <expr>) -> Lambda
+  *   - (natLam <expr>) -> NatLambda
+  *   - (dataLam <expr>) -> DataLambda
+  *   - (addrLam <expr>) -> AddrLambda
+  *   - (natNatLam <expr>) -> LambdaNatToNat
+  *   - (natApp <expr> <nat>) -> NatApp
+  *   - (dataApp <expr> <datatype>) -> DataApp
+  *   - (addrApp <expr> <addr>) -> AddrApp
+  *   - (natNatApp <expr> <n2n>) -> AppNatToNat
+  *   - $e<n> -> Var(n)
+  *   - $n<n> -> NatVar(n)
+  *   - $d<n> -> DataTypeVar(n)
+  *   - $a<n> -> AddressVar(n)
+  *   - <n>n -> NatCst(n)
+  *   - <n>i -> IntData(n)
+  *   - <n>.0 or <n>f -> FloatData(n)
+  *   - true/false -> BoolData
+  *   - <primitiveName> -> Primitive
+  */
+object SExprParser {
+  import rise.core.{primitives => rcp}
+  import rise.core.types.{DataType => rcdt}
+  import rise.core.semantics._
+
+  // Use explicit names to avoid shadowing from top-level import
+  private val EqsatDataType = rise.eqsat.DataType
+
+  sealed trait SExpr
+  case class SList(items: Seq[SExpr]) extends SExpr
+  case class SAtom(value: String) extends SExpr
+
+  case class ParseException(msg: String) extends Exception(msg)
+
+  def parse(input: String): Expr = {
+    val sexpr = parseSExpr(input.trim)
+    parseExpr(sexpr)
+  }
+
+  def parseSExpr(input: String): SExpr = {
+    val (result, remaining) = parseSExprHelper(input.trim)
+    if (remaining.trim.nonEmpty) {
+      throw ParseException(s"Unexpected trailing content: ${remaining.take(50)}...")
+    }
+    result
+  }
+
+  private def parseSExprHelper(input: String): (SExpr, String) = {
+    val s = input.trim
+    if (s.isEmpty) {
+      throw ParseException("Unexpected end of input")
+    } else if (s.startsWith("(")) {
+      parseList(s.drop(1))
+    } else {
+      parseAtom(s)
+    }
+  }
+
+  private def parseList(input: String): (SList, String) = {
+    var remaining = input.trim
+    val items = scala.collection.mutable.ArrayBuffer[SExpr]()
+
+    while (remaining.nonEmpty && !remaining.startsWith(")")) {
+      val (item, rest) = parseSExprHelper(remaining)
+      items += item
+      remaining = rest.trim
+    }
+
+    if (remaining.isEmpty || !remaining.startsWith(")")) {
+      throw ParseException("Unclosed parenthesis")
+    }
+
+    (SList(items.toSeq), remaining.drop(1))
+  }
+
+  def parseAtom(input: String): (SAtom, String) = {
+    val s = input.trim
+    val endIdx = s.indexWhere(c => c.isWhitespace || c == '(' || c == ')')
+    if (endIdx == -1) {
+      (SAtom(s), "")
+    } else {
+      (SAtom(s.take(endIdx)), s.drop(endIdx))
+    }
+  }
+
+  def parseExpr(sexpr: SExpr): Expr = sexpr match {
+    case SList(Seq(SAtom("typeOf"), exprSExpr, typeSExpr)) =>
+      val node = parseExprNode(exprSExpr)
+      val ty = parseType(typeSExpr)
+      Expr(node, ty)
+    case SAtom(atom) =>
+      // Bare atom with no type annotation - try to parse as expr node
+      // This shouldn't happen in well-formed input since all exprs should be wrapped in typeOf
+      throw ParseException(s"Expected (typeOf ...) but got bare atom: $atom")
+    case SList(items) =>
+      throw ParseException(
+        s"Expected (typeOf <expr> <type>) but got list with ${items.length} items: ${items.take(3).mkString(", ")}..."
+      )
+  }
+
+  private def parseExprNode(sexpr: SExpr): Node[Expr, Nat, rise.eqsat.DataType, Address] =
+    sexpr match {
+      case SAtom(atom)                       => parseAtomAsExprNode(atom)
+      case SList(Seq(SAtom("typeOf"), _, _)) =>
+        // This is a nested typed expression, but we need just the node
+        // Actually, we need to recurse and get the full Expr
+        throw ParseException("Internal error: typeOf should be handled by parseExpr")
+      case SList(Seq(SAtom("app"), f, e)) =>
+        App(parseExpr(f), parseExpr(e))
+      case SList(Seq(SAtom("lam"), body)) =>
+        Lambda(parseExpr(body))
+      case SList(Seq(SAtom("natLam"), body)) =>
+        NatLambda(parseExpr(body))
+      case SList(Seq(SAtom("dataLam"), body)) =>
+        DataLambda(parseExpr(body))
+      case SList(Seq(SAtom("addrLam"), body)) =>
+        AddrLambda(parseExpr(body))
+      case SList(Seq(SAtom("natNatLam"), body)) =>
+        LambdaNatToNat(parseExpr(body))
+      case SList(Seq(SAtom("natApp"), f, x)) =>
+        NatApp(parseExpr(f), parseNat(x))
+      case SList(Seq(SAtom("dataApp"), f, x)) =>
+        DataApp(parseExpr(f), parseDataType(x))
+      case SList(Seq(SAtom("addrApp"), f, x)) =>
+        AddrApp(parseExpr(f), parseAddress(x))
+      case SList(Seq(SAtom("idxL"), i, n)) =>
+        IndexLiteral(parseNat(i), parseNat(n))
+      // NatLiteral with complex nat expression
+      case SList(Seq(SAtom("natAdd"), _, _)) | SList(Seq(SAtom("natMul"), _, _)) | SList(
+            Seq(SAtom("natPow"), _, _)
+          ) | SList(Seq(SAtom("natMod"), _, _)) | SList(Seq(SAtom("natFloorDiv"), _, _)) =>
+        NatLiteral(parseNat(sexpr))
+      case SList(items) =>
+        throw ParseException(s"Unknown expression form: (${items.map(_.toString).mkString(" ")})")
+    }
+
+  private def parseAtomAsExprNode(atom: String): Node[Expr, Nat, rise.eqsat.DataType, Address] = {
+    // Variable: $e<n>
+    if (atom.startsWith("$e")) {
+      val idx = atom.drop(2).toInt
+      return Var(idx)
+    }
+
+    // Integer literal: <n>i
+    if (atom.endsWith("i") && atom.dropRight(1).forall(c => c.isDigit || c == '-')) {
+      val value = atom.dropRight(1).toInt
+      return Literal(IntData(value))
+    }
+
+    // Boolean literals (check before float/double to avoid conflict)
+    if (atom == "true") return Literal(BoolData(true))
+    if (atom == "false") return Literal(BoolData(false))
+
+    // Float/Double literal: decimal number (reggvolve outputs floats/doubles without suffix)
+    // Handle formats like: 0.0, -1.5, 1.0E-5, etc.
+    if (atom.contains(".") || atom.contains("E") || atom.contains("e")) {
+      try {
+        val value = atom.toFloat
+        return Literal(FloatData(value))
+      } catch {
+        case _: NumberFormatException => // fall through to primitive check
+      }
+    }
+
+    // NatLiteral: nat constant like "5n" or nat var "$n0" in expression position
+    if (atom.endsWith("n") && atom.dropRight(1).forall(c => c.isDigit || c == '-')) {
+      val value = atom.dropRight(1).toLong
+      return NatLiteral(Nat(NatCst(value)))
+    }
+    if (atom.startsWith("$n")) {
+      val idx = atom.drop(2).toInt
+      return NatLiteral(Nat(NatVar(idx)))
+    }
+
+    // Otherwise, try to find a primitive by name
+    parsePrimitive(atom) match {
+      case Some(p) => Primitive(p)
+      case None    => throw ParseException(s"Unknown atom in expression position: $atom")
+    }
+  }
+
+  def parseType(sexpr: SExpr): rise.eqsat.Type = sexpr match {
+    case SAtom(atom) => parseAtomAsType(atom)
+    case SList(Seq(SAtom("fun"), inT, outT)) =>
+      rise.eqsat.Type(FunType(parseType(inT), parseType(outT)))
+    case SList(Seq(SAtom("natFun"), t)) =>
+      rise.eqsat.Type(NatFunType(parseType(t)))
+    case SList(Seq(SAtom("dataFun"), t)) =>
+      rise.eqsat.Type(DataFunType(parseType(t)))
+    case SList(Seq(SAtom("addrFun"), t)) =>
+      rise.eqsat.Type(AddrFunType(parseType(t)))
+    case SList(Seq(SAtom("natNatFun"), t)) =>
+      rise.eqsat.Type(NatToNatFunType(parseType(t)))
+    // Data types that look like types
+    case SList(Seq(SAtom("arrT"), n, et)) =>
+      rise.eqsat.Type(ArrayType(parseNat(n), parseDataType(et)))
+    case SList(Seq(SAtom("vecT"), n, et)) =>
+      rise.eqsat.Type(VectorType(parseNat(n), parseDataType(et)))
+    case SList(Seq(SAtom("pairT"), dt1, dt2)) =>
+      rise.eqsat.Type(PairType(parseDataType(dt1), parseDataType(dt2)))
+    case SList(Seq(SAtom("idxT"), n)) =>
+      rise.eqsat.Type(IndexType(parseNat(n)))
+    case SList(items) =>
+      throw ParseException(s"Unknown type form: (${items.map(_.toString).mkString(" ")})")
+  }
+
+  private def parseAtomAsType(atom: String): rise.eqsat.Type = {
+    // DataType var: $d<n>
+    if (atom.startsWith("$d")) {
+      val idx = atom.drop(2).toInt
+      return rise.eqsat.Type(DataTypeVar(idx))
+    }
+
+    // Scalar types
+    atom match {
+      case "f32"  => rise.eqsat.Type(ScalarType(rcdt.f32))
+      case "f64"  => rise.eqsat.Type(ScalarType(rcdt.f64))
+      case "f16"  => rise.eqsat.Type(ScalarType(rcdt.f16))
+      case "i8"   => rise.eqsat.Type(ScalarType(rcdt.i8))
+      case "i16"  => rise.eqsat.Type(ScalarType(rcdt.i16))
+      case "i32"  => rise.eqsat.Type(ScalarType(rcdt.i32))
+      case "i64"  => rise.eqsat.Type(ScalarType(rcdt.i64))
+      case "u8"   => rise.eqsat.Type(ScalarType(rcdt.u8))
+      case "u16"  => rise.eqsat.Type(ScalarType(rcdt.u16))
+      case "u32"  => rise.eqsat.Type(ScalarType(rcdt.u32))
+      case "u64"  => rise.eqsat.Type(ScalarType(rcdt.u64))
+      case "int"  => rise.eqsat.Type(ScalarType(rcdt.int))
+      case "bool" => rise.eqsat.Type(ScalarType(rcdt.bool))
+      case "natT" => rise.eqsat.Type(NatType)
+      case _      => throw ParseException(s"Unknown type atom: $atom")
+    }
+  }
+
+  def parseDataType(sexpr: SExpr): rise.eqsat.DataType = sexpr match {
+    case SAtom(atom) => parseAtomAsDataType(atom)
+    case SList(Seq(SAtom("arrT"), n, et)) =>
+      EqsatDataType(ArrayType(parseNat(n), parseDataType(et)))
+    case SList(Seq(SAtom("vecT"), n, et)) =>
+      EqsatDataType(VectorType(parseNat(n), parseDataType(et)))
+    case SList(Seq(SAtom("pairT"), dt1, dt2)) =>
+      EqsatDataType(PairType(parseDataType(dt1), parseDataType(dt2)))
+    case SList(Seq(SAtom("idxT"), n)) =>
+      EqsatDataType(IndexType(parseNat(n)))
+    case SList(items) =>
+      throw ParseException(s"Unknown data type form: (${items.map(_.toString).mkString(" ")})")
+  }
+
+  private def parseAtomAsDataType(atom: String): rise.eqsat.DataType = {
+    // DataType var: $d<n>
+    if (atom.startsWith("$d")) {
+      val idx = atom.drop(2).toInt
+      return EqsatDataType(DataTypeVar(idx))
+    }
+
+    // Scalar types
+    atom match {
+      case "f32"  => EqsatDataType(ScalarType(rcdt.f32))
+      case "f64"  => EqsatDataType(ScalarType(rcdt.f64))
+      case "f16"  => EqsatDataType(ScalarType(rcdt.f16))
+      case "i8"   => EqsatDataType(ScalarType(rcdt.i8))
+      case "i16"  => EqsatDataType(ScalarType(rcdt.i16))
+      case "i32"  => EqsatDataType(ScalarType(rcdt.i32))
+      case "i64"  => EqsatDataType(ScalarType(rcdt.i64))
+      case "u8"   => EqsatDataType(ScalarType(rcdt.u8))
+      case "u16"  => EqsatDataType(ScalarType(rcdt.u16))
+      case "u32"  => EqsatDataType(ScalarType(rcdt.u32))
+      case "u64"  => EqsatDataType(ScalarType(rcdt.u64))
+      case "int"  => EqsatDataType(ScalarType(rcdt.int))
+      case "bool" => EqsatDataType(ScalarType(rcdt.bool))
+      case "natT" => EqsatDataType(NatType)
+      case _      => throw ParseException(s"Unknown data type atom: $atom")
+    }
+  }
+
+  def parseNat(sexpr: SExpr): Nat = sexpr match {
+    case SAtom(atom) => parseAtomAsNat(atom)
+    case SList(Seq(SAtom("natAdd"), a, b)) =>
+      Nat(NatAdd(parseNat(a), parseNat(b)))
+    case SList(Seq(SAtom("natMul"), a, b)) =>
+      Nat(NatMul(parseNat(a), parseNat(b)))
+    case SList(Seq(SAtom("natPow"), a, b)) =>
+      Nat(NatPow(parseNat(a), parseNat(b)))
+    case SList(Seq(SAtom("natMod"), a, b)) =>
+      Nat(NatMod(parseNat(a), parseNat(b)))
+    case SList(Seq(SAtom("natFloorDiv"), a, b)) =>
+      Nat(NatIntDiv(parseNat(a), parseNat(b)))
+    case SList(items) =>
+      throw ParseException(s"Unknown nat form: (${items.map(_.toString).mkString(" ")})")
+  }
+
+  private def parseAtomAsNat(atom: String): Nat = {
+    // Nat var: $n<n>
+    if (atom.startsWith("$n")) {
+      val idx = atom.drop(2).toInt
+      return Nat(NatVar(idx))
+    }
+
+    // Nat constant: <n>n
+    if (atom.endsWith("n")) {
+      val value = atom.dropRight(1).toLong
+      return Nat(NatCst(value))
+    }
+
+    // Plain number (also a nat constant)
+    if (atom.forall(c => c.isDigit || c == '-')) {
+      val value = atom.toLong
+      return Nat(NatCst(value))
+    }
+
+    throw ParseException(s"Unknown nat atom: $atom")
+  }
+
+  def parseAddress(sexpr: SExpr): Address = sexpr match {
+    case SAtom(atom) => parseAtomAsAddress(atom)
+    case SList(items) =>
+      throw ParseException(s"Unknown address form: (${items.map(_.toString).mkString(" ")})")
+  }
+
+  private def parseAtomAsAddress(atom: String): Address = {
+    // Address var: $a<n>
+    if (atom.startsWith("$a")) {
+      val idx = atom.drop(2).toInt
+      return AddressVar(idx)
+    }
+
+    atom match {
+      case "global"   => Global
+      case "local"    => Local
+      case "private"  => Private
+      case "constant" => Constant
+      case _          => throw ParseException(s"Unknown address atom: $atom")
+    }
+  }
+
+  private def parsePrimitive(name: String): Option[rise.core.Primitive] = {
+    // Map of primitive names to their builders
+    val primitives: Map[String, rise.core.Primitive] = Map(
+      "map" -> rcp.map.primitive,
+      "reduce" -> rcp.reduce.primitive,
+      "zip" -> rcp.zip.primitive,
+      "fst" -> rcp.fst.primitive,
+      "snd" -> rcp.snd.primitive,
+      "add" -> rcp.add.primitive,
+      "sub" -> rcp.sub.primitive,
+      "mul" -> rcp.mul.primitive,
+      "div" -> rcp.div.primitive,
+      "mod" -> rcp.mod.primitive,
+      "neg" -> rcp.neg.primitive,
+      "not" -> rcp.not.primitive,
+      "gt" -> rcp.gt.primitive,
+      "lt" -> rcp.lt.primitive,
+      "equal" -> rcp.equal.primitive,
+      "select" -> rcp.select.primitive,
+      "id" -> rcp.id.primitive,
+      "let" -> rcp.let.primitive,
+      "transpose" -> rcp.transpose.primitive,
+      "join" -> rcp.join.primitive,
+      "split" -> rcp.split.primitive,
+      "slide" -> rcp.slide.primitive,
+      "take" -> rcp.take.primitive,
+      "drop" -> rcp.drop.primitive,
+      "concat" -> rcp.concat.primitive,
+      "makePair" -> rcp.makePair.primitive,
+      "mapFst" -> rcp.mapFst.primitive,
+      "mapSnd" -> rcp.mapSnd.primitive,
+      "mapSeq" -> rcp.mapSeq.primitive,
+      "mapSeqUnroll" -> rcp.mapSeqUnroll.primitive,
+      "reduceSeq" -> rcp.reduceSeq.primitive,
+      "reduceSeqUnroll" -> rcp.reduceSeqUnroll.primitive,
+      "scanSeq" -> rcp.scanSeq.primitive,
+      "iterate" -> rcp.iterate.primitive,
+      "toMem" -> rcp.toMem.primitive,
+      "idx" -> rcp.idx.primitive,
+      "cast" -> rcp.cast.primitive,
+      "generate" -> rcp.generate.primitive,
+      "gather" -> rcp.gather.primitive,
+      "scatter" -> rcp.scatter.primitive,
+      "unzip" -> rcp.unzip.primitive,
+      "padCst" -> rcp.padCst.primitive,
+      "padClamp" -> rcp.padClamp.primitive,
+      "padEmpty" -> rcp.padEmpty.primitive,
+      "partition" -> rcp.partition.primitive,
+      "reorder" -> rcp.reorder.primitive,
+      "circularBuffer" -> rcp.circularBuffer.primitive,
+      "rotateValues" -> rcp.rotateValues.primitive,
+      "asVector" -> rcp.asVector.primitive,
+      "asVectorAligned" -> rcp.asVectorAligned.primitive,
+      "asScalar" -> rcp.asScalar.primitive,
+      "vectorFromScalar" -> rcp.vectorFromScalar.primitive,
+      "indexAsNat" -> rcp.indexAsNat.primitive,
+      "natAsIndex" -> rcp.natAsIndex.primitive,
+      "depJoin" -> rcp.depJoin.primitive,
+      "depMapSeq" -> rcp.depMapSeq.primitive,
+      "depSlide" -> rcp.depSlide.primitive,
+      "depTile" -> rcp.depTile.primitive,
+      "depZip" -> rcp.depZip.primitive,
+      "dmatch" -> rcp.dmatch.primitive,
+      "iterateStream" -> rcp.iterateStream.primitive,
+      "mapStream" -> rcp.mapStream.primitive,
+      "makeDepPair" -> rcp.makeDepPair.primitive
+    )
+    primitives.get(name)
+  }
+}
