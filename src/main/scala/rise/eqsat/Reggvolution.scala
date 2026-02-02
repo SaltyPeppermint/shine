@@ -297,8 +297,8 @@ object Reggvolution {
               case BoolData(true)    => "true"
               case BoolData(false)   => "false"
               case IntData(value)    => s"${value}i" // s"Integer($value)"
-              case FloatData(value)  => s"${value}" // s"Float($value)"
-              case DoubleData(value) => s"${value}" // s"Double($value)"
+              case FloatData(value)  => s"${value}f" // s"Float($value)"
+              case DoubleData(value) => s"${value}d" // s"Double($value)"
               case _                 => throw new Exception(s"not supporting literal $d yet")
             }
           case NatLiteral(n)      => reggvolve(n)
@@ -453,8 +453,8 @@ object SerEGraph {
           case BoolData(true)  => "true"
           case BoolData(false) => "false"
           case IntData(i)      => s"${i}i" // s"Integer($value)"
-          case FloatData(f)    => s"${f}" // s"Float($value)"
-          case DoubleData(d)   => s"${d}" // s"Double($value)"
+          case FloatData(f)    => s"${f}f" // s"Float($value)"
+          case DoubleData(d)   => s"${d}d" // s"Double($value)"
           case _               => throw new Exception(s"not supporting literal $d yet")
         }
       case NatLiteral(n)      => "nat"
@@ -821,15 +821,16 @@ object SExprParser {
     if (atom == "true") return Literal(BoolData(true))
     if (atom == "false") return Literal(BoolData(false))
 
-    // Float/Double literal: decimal number (reggvolve outputs floats/doubles without suffix)
-    // Handle formats like: 0.0, -1.5, 1.0E-5, etc.
-    if (atom.contains(".") || atom.contains("E") || atom.contains("e")) {
-      try {
-        val value = atom.toFloat
-        return Literal(FloatData(value))
-      } catch {
-        case _: NumberFormatException => // fall through to primitive check
-      }
+    // Float literal: <n>f
+    if (atom.endsWith("f") && atom.dropRight(1).forall(c => c.isDigit || c == '-')) {
+      val value = atom.dropRight(1).toFloat
+      return Literal(FloatData(value))
+    }
+
+    // Float literal: <n>f
+    if (atom.endsWith("d") && atom.dropRight(1).forall(c => c.isDigit || c == '-')) {
+      val value = atom.dropRight(1).toDouble
+      return Literal(DoubleData(value))
     }
 
     // NatLiteral: nat constant like "5n" or nat var "$n0" in expression position
