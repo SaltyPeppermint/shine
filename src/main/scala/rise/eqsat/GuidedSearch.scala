@@ -263,7 +263,20 @@ class GuidedSearch(
           // Reggvolution.reggvolve(steps(0))
           println(s"Attempting zs hook via $egraphPath")
           import scala.sys.process._
-          val shellResult = Seq("./extract", egraphPath, "-r", "0", "-e", staticFixMe).!!
+          val shellResult =
+            Seq(
+              "./distance",
+              egraphPath,
+              "-e",
+              staticFixMe,
+              "count",
+              "--histogram",
+              "--scientific",
+              "-l",
+              "200",
+              "-s",
+              "1000"
+            ).!!
           println(shellResult)
           val expr = SExprParser.parse(shellResult.lines().toList().getLast())
           println(s"Continuing with: ${Expr.toNamed(expr)}")

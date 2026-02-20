@@ -22,3 +22,5 @@ float-safe-optimizer.jar
 *.o
 
 json
+distance
+*.txt
