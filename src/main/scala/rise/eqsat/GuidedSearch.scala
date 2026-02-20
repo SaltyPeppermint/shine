@@ -269,13 +269,17 @@ class GuidedSearch(
               egraphPath,
               "-e",
               staticFixMe,
+              "-d",
+              "structural",
               "count",
               "--histogram",
               "--scientific",
               "-l",
               "200",
-              "-s",
-              "1000"
+              "-b",
+              "1000000",
+              "--distribution",
+              "normal:2.5"
             ).!!
           println(shellResult)
           val expr = SExprParser.parse(shellResult.lines().toList().getLast())
