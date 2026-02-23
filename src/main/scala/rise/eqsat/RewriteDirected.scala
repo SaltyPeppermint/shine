@@ -10,7 +10,8 @@ trait RewriteDirected {
 
 object RewriteDirected {
   sealed trait Match
-  case class MatchNode(mnode: Node[Match, Unit, Unit, Unit], enode: ENode, id: EClassId) extends Match
+  case class MatchNode(mnode: Node[Match, Unit, Unit, Unit], enode: ENode, id: EClassId)
+      extends Match
   case class MatchClass(id: EClassId) extends Match
 
   // returns whether the right-hand side creates a new alternative,
@@ -18,8 +19,7 @@ object RewriteDirected {
   type Applier = () => (Boolean, Boolean)
 
   // returns amount of nodes removed
-  def greedyRemoval(egraph: EGraph,
-                    withAlternative: Vec[RewriteDirected.Match]): Int = {
+  def greedyRemoval(egraph: EGraph, withAlternative: Vec[RewriteDirected.Match]): Int = {
     // avoid deleting overlapping matches
     val attemptedDeletion = HashSet.empty[(EClassId, ENode)]
 
@@ -27,7 +27,7 @@ object RewriteDirected {
       m match {
         case MatchNode(mnode, enode, id) =>
           attemptedDeletion(id -> enode) ||
-            mnode.children().exists(overlapsAttemptedDeletion)
+          mnode.children().exists(overlapsAttemptedDeletion)
         case MatchClass(_) => false
       }
     }
@@ -46,7 +46,7 @@ object RewriteDirected {
       m match {
         case MatchNode(mnode, _, id) =>
           mnode.children().exists(sharesNonMatching) ||
-            (egraph.get(id).parents.size > 1)
+          (egraph.get(id).parents.size > 1)
         case MatchClass(_) => false
       }
     }
@@ -122,8 +122,7 @@ object RewriteDirected {
   private def foreachClassByMatch(egraph: EGraph, mnode: MNode)(f: EClassId => Unit): Unit =
     egraph.classesByMatch.get(mnode.matchHash()).foreach(_.foreach(f))
 
-  private def foreachMatchingNode(eclass: EClass, mnode: MNode)
-                                 (f: ENode => Unit): Unit =
+  private def foreachMatchingNode(eclass: EClass, mnode: MNode)(f: ENode => Unit): Unit =
     ematching.forEachMatchingNode(eclass, mnode, f)
 
   // FIXME: redundancy with e-matching and extended pattern search
@@ -144,9 +143,9 @@ object RewriteDirected {
       val freeOf = egraph.getAnalysis(FreeAnalysis)
       val smallestOf = egraph.getAnalysis(BENF.extractAnalysis)
 
-      foreachClassByMatch(egraph, lamNode){ id =>
+      foreachClassByMatch(egraph, lamNode) { id =>
         val lamEClass = egraph.get(id)
-        foreachMatchingNode(lamEClass, lamNode){ matchingLam =>
+        foreachMatchingNode(lamEClass, lamNode) { matchingLam =>
           val matchingLamBody = egraph.get(matchingLam.children().next())
           foreachMatchingNode(matchingLamBody, appNode) { matchingApp =>
             val matchingAppChildren = matchingApp.children().toSeq
@@ -154,20 +153,29 @@ object RewriteDirected {
             if (!freeOf(matchingAppFun.id).free.contains(0)) {
               val matchingAppArg = egraph.get(matchingAppChildren(1))
               foreachMatchingNode(matchingAppArg, Var(0)) { matchingVar0 =>
-                val m = MatchNode(Lambda(
-                  MatchNode(App(
-                    MatchClass(matchingAppFun.id),
-                    MatchNode(Var(0), matchingVar0, matchingAppArg.id)),
-                    matchingApp,
-                    matchingLamBody.id)),
+                val m = MatchNode(
+                  Lambda(
+                    MatchNode(
+                      App(
+                        MatchClass(matchingAppFun.id),
+                        MatchNode(Var(0), matchingVar0, matchingAppArg.id)
+                      ),
+                      matchingApp,
+                      matchingLamBody.id
+                    )
+                  ),
                   matchingLam,
-                  lamEClass.id)
-                res += ((m, () => {
-                  val extract = smallestOf(matchingAppFun.id)._1
-                  val shifted = extract.shifted(egraph, (-1, 0, 0, 0, 0), (1, 0, 0, 0, 0))
-                  val (resultNode, resultId) = egraph.addExpr2(shifted)
-                  (matchingLam != resultNode, egraph.union(lamEClass.id, resultId)._2)
-                }))
+                  lamEClass.id
+                )
+                res += ((
+                  m,
+                  () => {
+                    val extract = smallestOf(matchingAppFun.id)._1
+                    val shifted = extract.shifted(egraph, (-1, 0, 0, 0, 0), (1, 0, 0, 0, 0))
+                    val (resultNode, resultId) = egraph.addExpr2(shifted)
+                    (matchingLam != resultNode, egraph.union(lamEClass.id, resultId)._2)
+                  }
+                ))
               }
             }
           }
@@ -193,29 +201,42 @@ object RewriteDirected {
       val lamNode = Lambda(())
       val smallestOf = egraph.getAnalysis(BENF.extractAnalysis)
 
-      foreachClassByMatch(egraph, appNode){ id =>
+      foreachClassByMatch(egraph, appNode) { id =>
         val appEClass = egraph.get(id)
-        foreachMatchingNode(appEClass, appNode){ matchingApp =>
+        foreachMatchingNode(appEClass, appNode) { matchingApp =>
           val matchingAppChildren = matchingApp.children().toSeq
           val matchingAppFun = egraph.get(matchingAppChildren(0))
-          foreachMatchingNode(matchingAppFun, lamNode){ matchingLam =>
+          foreachMatchingNode(matchingAppFun, lamNode) { matchingLam =>
             val body = matchingLam.children().next()
             val subs = matchingAppChildren(1)
-            val m = MatchNode(App(
-              MatchNode(Lambda(
-                MatchClass(body)
-              ), matchingLam, matchingAppFun.id),
-              MatchClass(subs)),
-              matchingApp, appEClass.id)
-            res += ((m, () => {
-              val bodyEx = smallestOf(body)._1
-              val subsEx = smallestOf(subs)._1
-              // FIXME: next two lines are expensive
-              val expr = bodyEx.withArgument(egraph, subsEx)
-              val (resultNode, resultId) = egraph.addExpr2(expr)
-              (matchingApp.mapChildren(egraph.find) != resultNode.mapChildren(egraph.find),
-                egraph.union(appEClass.id, resultId)._2)
-            }))
+            val m = MatchNode(
+              App(
+                MatchNode(
+                  Lambda(
+                    MatchClass(body)
+                  ),
+                  matchingLam,
+                  matchingAppFun.id
+                ),
+                MatchClass(subs)
+              ),
+              matchingApp,
+              appEClass.id
+            )
+            res += ((
+              m,
+              () => {
+                val bodyEx = smallestOf(body)._1
+                val subsEx = smallestOf(subs)._1
+                // FIXME: next two lines are expensive
+                val expr = bodyEx.withArgument(egraph, subsEx)
+                val (resultNode, resultId) = egraph.addExpr2(expr)
+                (
+                  matchingApp.mapChildren(egraph.find) != resultNode.mapChildren(egraph.find),
+                  egraph.union(appEClass.id, resultId)._2
+                )
+              }
+            ))
           }
         }
       }
@@ -239,26 +260,39 @@ object RewriteDirected {
       val nLamNode = NatLambda(())
       val smallestOf = egraph.getAnalysis(BENF.extractAnalysis)
 
-      foreachClassByMatch(egraph, nAppNode){ id =>
+      foreachClassByMatch(egraph, nAppNode) { id =>
         val nAppEClass = egraph.get(id)
-        foreachMatchingNode(nAppEClass, nAppNode){ matchingNApp =>
+        foreachMatchingNode(nAppEClass, nAppNode) { matchingNApp =>
           val matchingNAppFun = egraph.get(matchingNApp.children().next())
-          foreachMatchingNode(matchingNAppFun, nLamNode){ matchingNLam =>
+          foreachMatchingNode(matchingNAppFun, nLamNode) { matchingNLam =>
             val body = matchingNLam.children().next()
             val subs = matchingNApp.nats().next()
-            val m = MatchNode(NatApp(
-              MatchNode(NatLambda(
-                MatchClass(body)
-              ), matchingNLam, matchingNAppFun.id),
-              ()),
-              matchingNApp, nAppEClass.id)
-            res += ((m, () => {
-              val bodyEx = smallestOf(body)._1
-              val expr = bodyEx.withNatArgument(egraph, subs)
-              val (resultNode, resultId) = egraph.addExpr2(expr)
-              (matchingNApp.mapChildren(egraph.find) != resultNode.mapChildren(egraph.find),
-                egraph.union(nAppEClass.id, resultId)._2)
-            }))
+            val m = MatchNode(
+              NatApp(
+                MatchNode(
+                  NatLambda(
+                    MatchClass(body)
+                  ),
+                  matchingNLam,
+                  matchingNAppFun.id
+                ),
+                ()
+              ),
+              matchingNApp,
+              nAppEClass.id
+            )
+            res += ((
+              m,
+              () => {
+                val bodyEx = smallestOf(body)._1
+                val expr = bodyEx.withNatArgument(egraph, subs)
+                val (resultNode, resultId) = egraph.addExpr2(expr)
+                (
+                  matchingNApp.mapChildren(egraph.find) != resultNode.mapChildren(egraph.find),
+                  egraph.union(nAppEClass.id, resultId)._2
+                )
+              }
+            ))
           }
         }
       }
@@ -279,13 +313,13 @@ object RewriteDirected {
 
       val appNode = App((), ())
 
-      foreachClassByMatch(egraph, appNode){ id =>
+      foreachClassByMatch(egraph, appNode) { id =>
         val appEClass = egraph.get(id)
-        foreachMatchingNode(appEClass, appNode){ matchingApp =>
+        foreachMatchingNode(appEClass, appNode) { matchingApp =>
           val matchingAppChildren = matchingApp.children().toSeq
           val matchingAppFun = egraph.get(matchingAppChildren(0))
           val matchingAppArg = egraph.get(matchingAppChildren(1))
-          foreachMatchingNode(matchingAppArg, appNode){ matchingApp2 =>
+          foreachMatchingNode(matchingAppArg, appNode) { matchingApp2 =>
             val matchingApp2Children = matchingApp2.children().toSeq
             val matchingApp2Fun = egraph.get(matchingApp2Children(0))
             val matchingApp2Arg = egraph.get(matchingApp2Children(1))
@@ -300,21 +334,36 @@ object RewriteDirected {
                   case FunType(dt1: DataTypeId, dt2_ : DataTypeId) =>
                     assert(dt2 == dt2_)
 
-                    val m = MatchNode(App(
-                      MatchClass(matchingAppFun.id),
-                      MatchNode(App(
-                        MatchClass(matchingApp2Fun.id),
-                        MatchClass(matchingApp2Arg.id)
+                    val m = MatchNode(
+                      App(
+                        MatchClass(matchingAppFun.id),
+                        MatchNode(
+                          App(
+                            MatchClass(matchingApp2Fun.id),
+                            MatchClass(matchingApp2Arg.id)
+                          ),
+                          matchingApp2,
+                          matchingAppArg.id
+                        )
                       ),
-                      matchingApp2, matchingAppArg.id)),
-                      matchingApp, appEClass.id)
-                    res += ((m, () => {
-                      val compGF = egraph.add(Composition(g.id, f.id), egraph.add(FunType(dt1, dt3)))
-                      val resultNode = App(compGF, x.id)
-                      val resultId = egraph.add(resultNode, dt3)
-                      (matchingApp.mapChildren(egraph.find) != resultNode.mapChildren(egraph.find),
-                        egraph.union(appEClass.id, resultId)._2)
-                    }))
+                      matchingApp,
+                      appEClass.id
+                    )
+                    res += ((
+                      m,
+                      () => {
+                        val compGF =
+                          egraph.add(Composition(g.id, f.id), egraph.add(FunType(dt1, dt3)))
+                        val resultNode = App(compGF, x.id)
+                        val resultId = egraph.add(resultNode, dt3)
+                        (
+                          matchingApp.mapChildren(egraph.find) != resultNode.mapChildren(
+                            egraph.find
+                          ),
+                          egraph.union(appEClass.id, resultId)._2
+                        )
+                      }
+                    ))
                   case _ =>
                 }
               case _ =>
@@ -339,13 +388,13 @@ object RewriteDirected {
 
       val compNode = Composition((), ())
 
-      foreachClassByMatch(egraph, compNode){ id =>
+      foreachClassByMatch(egraph, compNode) { id =>
         val compEClass = egraph.get(id)
-        foreachMatchingNode(compEClass, compNode){ matchingComp =>
+        foreachMatchingNode(compEClass, compNode) { matchingComp =>
           val matchingCompChildren = matchingComp.children().toSeq
           val matchingComp_1 = egraph.get(matchingCompChildren(0))
           val matchingComp_2 = egraph.get(matchingCompChildren(1))
-          foreachMatchingNode(matchingComp_2, compNode){ matchingComp2 =>
+          foreachMatchingNode(matchingComp_2, compNode) { matchingComp2 =>
             val matchingComp2Children = matchingComp2.children().toSeq
             val matchingComp2_1 = egraph.get(matchingComp2Children(0))
             val matchingComp2_2 = egraph.get(matchingComp2Children(1))
@@ -360,21 +409,36 @@ object RewriteDirected {
                   case FunType(_, t3) =>
                     egraph(h.t) match {
                       case FunType(_, t4) =>
-                        val m = MatchNode(Composition(
-                          MatchClass(matchingComp_1.id),
-                          MatchNode(Composition(
-                            MatchClass(matchingComp2_1.id),
-                            MatchClass(matchingComp2_2.id)
+                        val m = MatchNode(
+                          Composition(
+                            MatchClass(matchingComp_1.id),
+                            MatchNode(
+                              Composition(
+                                MatchClass(matchingComp2_1.id),
+                                MatchClass(matchingComp2_2.id)
+                              ),
+                              matchingComp2,
+                              matchingComp_2.id
+                            )
                           ),
-                          matchingComp2, matchingComp_2.id)),
-                          matchingComp, compEClass.id)
-                        res += ((m, (() => {
-                          val compFG = egraph.add(Composition(f.id, g.id), egraph.add(FunType(t1, t3)))
-                          val resultNode = Composition(compFG, h.id)
-                          val resultId = egraph.add(resultNode, egraph.add(FunType(t1, t4)))
-                          (matchingComp.mapChildren(egraph.find) != resultNode.mapChildren(egraph.find),
-                            egraph.union(compEClass.id, resultId)._2)
-                        })))
+                          matchingComp,
+                          compEClass.id
+                        )
+                        res += ((
+                          m,
+                          (() => {
+                            val compFG =
+                              egraph.add(Composition(f.id, g.id), egraph.add(FunType(t1, t3)))
+                            val resultNode = Composition(compFG, h.id)
+                            val resultId = egraph.add(resultNode, egraph.add(FunType(t1, t4)))
+                            (
+                              matchingComp.mapChildren(egraph.find) != resultNode.mapChildren(
+                                egraph.find
+                              ),
+                              egraph.union(compEClass.id, resultId)._2
+                            )
+                          })
+                        ))
                       case _ => ()
                     }
                   case _ => ()
