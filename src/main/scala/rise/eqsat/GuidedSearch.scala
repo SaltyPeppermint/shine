@@ -272,6 +272,7 @@ class GuidedSearch(
               "-d",
               "structural",
               "count",
+              "--overlap",
               "--histogram",
               "--scientific",
               "-l",
@@ -279,7 +280,8 @@ class GuidedSearch(
               "-b",
               "1000000",
               "--distribution",
-              "normal:2.5"
+              "uniform"
+              // "normal:2.5"
             ).!!
           println(shellResult)
           val expr = SExprParser.parse(shellResult.lines().toList().getLast())

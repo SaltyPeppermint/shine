@@ -275,7 +275,7 @@ object mm_zs {
     .withMemoryLimit(32L * 1024L * 1024L * 1024L)
        */
       .withNodeLimit(50_000_000)
-      .withIterationLimit(5)
+      .withIterationLimit(8)
 
   private val split =
     containsMap(
@@ -345,7 +345,7 @@ object mm_zs {
       .run(start, steps, "blocking_SR", true)
   }
 
-  private def blocking_SR_CHONK(combinedStep: GuidedSearch.Step): GuidedSearch.Result = {
+  private def blocking_SR_IN_ONE_STEP(combinedStep: GuidedSearch.Step): GuidedSearch.Result = {
     val start = mm
 
     val steps = Seq(combinedStep withSketch reorder_1)
@@ -357,7 +357,7 @@ object mm_zs {
           StandardConstraintsPredicate
       )
       .withRunnerTransform(runnerTrans)
-      .run(start, steps, "blocking_SR_CHONK")
+      .run(start, steps, "blocking_SR_IN_ONE_STEP")
   }
 
   // private val lower_1 =
@@ -616,7 +616,9 @@ object mm_zs {
       "blocking one guide" -> { () =>
         blocking_SR_ZS(splitStepBENF compose reorderStepBENF)
       },
-      "blocking SR CHONK" -> { () => blocking_SR_CHONK(splitStepBENF compose reorderStepBENF) }
+      "blocking SR IN ONE STEP" -> { () =>
+        blocking_SR_IN_ONE_STEP(splitStepBENF compose reorderStepBENF)
+      }
       // "vectorization SRL" -> vectorization_SRL _,
       // "loop-perm SRL" -> loopPerm_SRL _,
       // "array-packing SRCL" -> arrayPacking_SRCL _,
