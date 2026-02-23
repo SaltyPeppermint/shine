@@ -34,7 +34,7 @@ object SimpleScheduler extends Scheduler {
       shc: Substs,
       rewrite: Rewrite
   ): Vec[SearchMatches[shc.Subst]] =
-    rewrite.search(egraph, shc)
+    rewrite.search(egraph, shc).filterNot(m => egraph.isImmutable(m.eclass))
 }
 
 /* TODO: only for SubstHC
@@ -82,7 +82,7 @@ class CuttingScheduler(var notApplied: HashSet[Object],
     }
 
     notApplied -= rewrite
-    val matches = rewrite.search(egraph, shc)
+    val matches = rewrite.search(egraph, shc).filterNot(m => egraph.isImmutable(m.eclass))
     def check(b: Boolean) =
       if (!b) { throw new Exception("check") }
     var uniqueSubsts = HashSet[Object]()
@@ -152,7 +152,7 @@ class SamplingScheduler(
       rewrite: Rewrite
   ): Vec[SearchMatches[shc.Subst]] = {
     val limit = limits.getOrElse(rewrite, defaultLimit)
-    val matches = rewrite.search(egraph, shc)
+    val matches = rewrite.search(egraph, shc).filterNot(m => egraph.isImmutable(m.eclass))
     if (matches.size > limit) {
       println(s"sampled $limit from ${matches.size} matches")
       random.shuffle(matches).take(limit)
@@ -251,7 +251,7 @@ class BackoffScheduler(
       return Vec.empty
     }
 
-    val matches = rewrite.search(egraph, shc)
+    val matches = rewrite.search(egraph, shc).filterNot(m => egraph.isImmutable(m.eclass))
 
     val totalLen = matches.view.map(_.substs.size).sum
     val threshold = rs.matchLimit << rs.timesBanned

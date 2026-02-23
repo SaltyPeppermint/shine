@@ -14,6 +14,7 @@ object EGraph {
       analysisPending = Vec.empty[PendingAnalysis],
       classesByMatch = HashMap.empty,
       hashConses = HashConses.empty(),
+      immutable = HashSet.empty[EClassId],
       clean = true
     )
 }
@@ -50,6 +51,7 @@ class EGraph(
     var classes: HashMap[EClassId, EClass],
     var classesByMatch: HashMap[Int, HashSet[EClassId]],
     var hashConses: HashConses,
+    var immutable: HashSet[EClassId],
 
     // Whether or not reading operation are allowed on this e-graph.
     // Mutating operations will set this to `false`, and
@@ -528,5 +530,9 @@ class EGraph(
         s" in ${Seq(rt1, rt2, rt3).map(util.prettyTime).mkString(" + ")}"
     )
     (eliminatedClasses, eliminatedNodes)
+  }
+
+  def isImmutable(id: EClassId): Boolean = {
+    immutable.contains(find(id))
   }
 }
