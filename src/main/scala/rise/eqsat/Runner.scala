@@ -123,7 +123,7 @@ class Runner(
       totalTime = 0,
       nRebuilds = 0,
       memStats = util.memStats(),
-      serEGraph = SerEGraph.from_egraph(egraph)
+      serEGraph = SerEGraph.fromEgraph(egraph)
     )
     // println(iteration0)
     iterations += iteration0
@@ -245,7 +245,7 @@ class Runner(
       totalTime = time3 - time0,
       nRebuilds = nRebuilds,
       memStats = memStats1 max memStats3,
-      serEGraph = SerEGraph.from_egraph(egraph)
+      serEGraph = SerEGraph.fromEgraph(egraph)
     )
   }
 }

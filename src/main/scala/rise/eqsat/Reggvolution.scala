@@ -387,10 +387,41 @@ object Reggvolution {
 
 }
 
+private object ScalarTypes {
+  import rise.core.types.{DataType => rcdt}
+
+  val byName: Map[String, rcdt.ScalarType] = Map(
+    "f32" -> rcdt.f32,
+    "f64" -> rcdt.f64,
+    "f16" -> rcdt.f16,
+    "i8" -> rcdt.i8,
+    "i16" -> rcdt.i16,
+    "i32" -> rcdt.i32,
+    "i64" -> rcdt.i64,
+    "u8" -> rcdt.u8,
+    "u16" -> rcdt.u16,
+    "u32" -> rcdt.u32,
+    "u64" -> rcdt.u64,
+    "int" -> rcdt.int,
+    "bool" -> rcdt.bool
+  )
+
+  def parse(name: String): Option[rcdt.ScalarType] = byName.get(name)
+}
+
 object SerEGraph {
   implicit val ownerRw: ReadWriter[SerEGraph] = macroRW[SerEGraph]
 
-  def from_egraph(egraph: EGraph): SerEGraph = {
+  def fromJson(json: String): SerEGraph = read[SerEGraph](json)
+
+  def fromFile(path: String): SerEGraph = {
+    val source = scala.io.Source.fromFile(path)
+    try { fromJson(source.mkString) }
+    finally { source.close() }
+  }
+
+  def fromEgraph(egraph: EGraph): SerEGraph = {
+    assert(egraph.clean, "fromEgraph requires a clean EGraph")
 
     var classesToPrint = egraph.classes.values.toSeq
 
@@ -398,11 +429,7 @@ object SerEGraph {
 
     val classes = egraph.classes.toMap.map {
       case (id: EClassId, eclass: EClass) => {
-        val children = eclass.nodes.map((node) => {
-          val label = nodeLabel(node)
-          val children = nodeChildren(node)
-          SerENode(label, children)
-        })
+        val children = eclass.nodes.map(nodeToSerENode)
         (id.i, SerEClass(SerId.p(eclass.t), children.toSeq))
       }
     }
@@ -425,65 +452,32 @@ object SerEGraph {
 
   }
 
-  private def nodeLabel(n: ENode): String = {
-    n match {
-      case Var(index)        => s"$$e$index"
-      case App(_, _)         => "app"
-      case Lambda(_)         => "lam"
-      case NatApp(_, _)      => "natApp"
-      case NatLambda(_)      => "natLam"
-      case DataApp(_, _)     => "dataApp"
-      case DataLambda(_)     => "dataLam"
-      case AddrApp(f, e)     => throw new Exception("not dealing with addresses")
-      case AddrLambda(e)     => throw new Exception("not dealing with addresses")
-      case AppNatToNat(f, e) => throw new Exception("not dealing with nat2nat")
-      case LambdaNatToNat(e) => throw new Exception("not dealing with nat2nat")
-      case Literal(d) =>
-        d match {
-          // case NatData(n)      =>
-          // case IndexData(i, n) =>
-          // case BoolData(b)     =>
-          // case IntData(i)      =>
-          // case FloatData(f)    =>
-          // case DoubleData(d)   =>
-          // case VectorData(v)    =>
-          // case ArrayData(a)     =>
-          // case PairData(p1, p2) =>
-          case NatData(n)      => s"${n}n"
-          case BoolData(true)  => "true"
-          case BoolData(false) => "false"
-          case IntData(i)      => s"${i}i" // s"Integer($value)"
-          case FloatData(f)    => s"${f}f" // s"Float($value)"
-          case DoubleData(d)   => s"${d}d" // s"Double($value)"
-          case _               => throw new Exception(s"not supporting literal $d yet")
-        }
-      case NatLiteral(n)      => "nat"
-      case IndexLiteral(_, _) => "idx"
-      case Primitive(p)       => p.toString().trim()
-      case Composition(_, _)  => ">>"
-    }
-  }
-
-  private def nodeChildren(n: ENode): Seq[String] = {
-    n match {
-
-      case App(f, e)         => Seq(SerId.p(f), SerId.p(e))
-      case Lambda(e)         => Seq(e).map(SerId.p)
-      case NatApp(f, e)      => Seq(SerId.p(f), SerId.p(e))
-      case NatLambda(e)      => Seq(e).map(SerId.p)
-      case DataApp(f, e)     => Seq(SerId.p(f), SerId.p(e))
-      case DataLambda(e)     => Seq(e).map(SerId.p)
-      case AddrApp(f, e)     => throw new Exception("not dealing with addresses")
-      case AddrLambda(e)     => throw new Exception("not dealing with addresses")
-      case AppNatToNat(f, e) => throw new Exception("not dealing with nat2nat")
-      case LambdaNatToNat(e) => throw new Exception("not dealing with nat2nat")
-
-      case NatLiteral(n) => Seq(n).map(SerId.p)
-
-      case IndexLiteral(x, y) => Seq(x, y).map(SerId.p)
-      case Composition(a, b)  => Seq(a, b).map(SerId.p)
-      case _                  => Seq.empty
-    }
+  private def nodeToSerENode(n: ENode): SerENode = n match {
+    case Var(index)        => SerENode(s"$$e$index", Seq.empty)
+    case App(f, e)         => SerENode("app", Seq(SerId.p(f), SerId.p(e)))
+    case Lambda(e)         => SerENode("lam", Seq(SerId.p(e)))
+    case NatApp(f, e)      => SerENode("natApp", Seq(SerId.p(f), SerId.p(e)))
+    case NatLambda(e)      => SerENode("natLam", Seq(SerId.p(e)))
+    case DataApp(f, e)     => SerENode("dataApp", Seq(SerId.p(f), SerId.p(e)))
+    case DataLambda(e)     => SerENode("dataLam", Seq(SerId.p(e)))
+    case AddrApp(f, e)     => throw new Exception("not dealing with addresses")
+    case AddrLambda(e)     => throw new Exception("not dealing with addresses")
+    case AppNatToNat(f, e) => throw new Exception("not dealing with nat2nat")
+    case LambdaNatToNat(e) => throw new Exception("not dealing with nat2nat")
+    case Literal(d) =>
+      d match {
+        case NatData(n)      => SerENode(s"${n}n", Seq.empty)
+        case BoolData(true)  => SerENode("true", Seq.empty)
+        case BoolData(false) => SerENode("false", Seq.empty)
+        case IntData(i)      => SerENode(s"${i}i", Seq.empty)
+        case FloatData(f)    => SerENode(s"${f}f", Seq.empty)
+        case DoubleData(d)   => SerENode(s"${d}d", Seq.empty)
+        case _               => throw new Exception(s"not supporting literal $d yet")
+      }
+    case NatLiteral(n)      => SerENode("nat", Seq(SerId.p(n)))
+    case IndexLiteral(x, y) => SerENode("idx", Seq(SerId.p(x), SerId.p(y)))
+    case Primitive(p)       => SerENode(p.toString().trim(), Seq.empty)
+    case Composition(a, b)  => SerENode(">>", Seq(SerId.p(a), SerId.p(b)))
   }
 }
 
@@ -503,6 +497,192 @@ case class SerEGraph(
 
   def print(path: String): Unit = {
     println(write(this))
+  }
+
+  /** Load this serialized e-graph into an existing EGraph, replacing its classes, unionFind, and
+    * hashConses. Analyses and other state from the existing EGraph are preserved. The given
+    * immutable IDs are normalized via find and added to the existing immutable set.
+    */
+  def toEGraph(
+      existing: EGraph,
+      roots: Seq[EClassId],
+      immutableIds: Seq[Int] = Seq.empty
+  ): (EGraph, Seq[EClassId]) = {
+    import rise.core.{primitives => rcp}
+    import rise.core.semantics._
+
+    assert(existing.clean, "toEGraph requires a clean EGraph")
+
+    // --- Parse ID strings back ---
+    def parseEClassId(s: String): EClassId = {
+      val i = s.stripPrefix("EClassId(").stripSuffix(")").toInt
+      EClassId(i)
+    }
+    def parseNatId(s: String): NatId = {
+      val i = s.stripPrefix("NatId(").stripSuffix(")").toInt
+      NatId(i)
+    }
+    def parseDataTypeId(s: String): DataTypeId = {
+      val i = s.stripPrefix("DataTypeId(").stripSuffix(")").toInt
+      DataTypeId(i)
+    }
+    def parseNotDataTypeId(s: String): NotDataTypeId = {
+      val i = s.stripPrefix("NotDataTypeId(").stripSuffix(")").toInt
+      NotDataTypeId(i)
+    }
+    def parseTypeId(s: String): TypeId = {
+      if (s.startsWith("DataTypeId")) parseDataTypeId(s)
+      else parseNotDataTypeId(s)
+    }
+
+    def parseDataTypeNode(sn: SerENode): DataTypeNode[NatId, DataTypeId] = sn.node match {
+      case s if s.startsWith("$d") => DataTypeVar(s.drop(2).toInt)
+      case "natT"                  => NatType
+      case "idxT"                  => IndexType(parseNatId(sn.children(0)))
+      case "pairT" => PairType(parseDataTypeId(sn.children(0)), parseDataTypeId(sn.children(1)))
+      case "arrT"  => ArrayType(parseNatId(sn.children(0)), parseDataTypeId(sn.children(1)))
+      case "vecT"  => VectorType(parseNatId(sn.children(0)), parseDataTypeId(sn.children(1)))
+      case other =>
+        ScalarTypes.parse(other) match {
+          case Some(s) => ScalarType(s)
+          case None    => throw new Exception(s"Unknown data type node: $other")
+        }
+    }
+
+    // --- Rebuild HashConses ---
+    val natNodes = HashMap.empty[NatId, NatNode[NatId]]
+    val natMemo = HashMap.empty[NatNode[NatId], NatId]
+    for ((id, sn) <- natHashCon) {
+      val natId = NatId(id)
+      val node: NatNode[NatId] = sn.node match {
+        case s if s.startsWith("$n") => NatVar(s.drop(2).toInt)
+        case s if s.endsWith("n")    => NatCst(s.dropRight(1).toLong)
+        case "natAdd"      => NatAdd(parseNatId(sn.children(0)), parseNatId(sn.children(1)))
+        case "natMul"      => NatMul(parseNatId(sn.children(0)), parseNatId(sn.children(1)))
+        case "natPow"      => NatPow(parseNatId(sn.children(0)), parseNatId(sn.children(1)))
+        case "natMod"      => NatMod(parseNatId(sn.children(0)), parseNatId(sn.children(1)))
+        case "natFloorDiv" => NatIntDiv(parseNatId(sn.children(0)), parseNatId(sn.children(1)))
+        case other         => throw new Exception(s"Unknown nat node: $other")
+      }
+      natNodes += natId -> node
+      natMemo += node -> natId
+    }
+
+    val dtNodes = HashMap.empty[DataTypeId, DataTypeNode[NatId, DataTypeId]]
+    val dtMemo = HashMap.empty[DataTypeNode[NatId, DataTypeId], DataTypeId]
+    for ((id, sn) <- dataTypeHashCon) {
+      val dtId = DataTypeId(id)
+      val node: DataTypeNode[NatId, DataTypeId] = parseDataTypeNode(sn)
+      dtNodes += dtId -> node
+      dtMemo += node -> dtId
+    }
+
+    val tyNodes = HashMap.empty[NotDataTypeId, TypeNode[TypeId, NatId, DataTypeId]]
+    val tyMemo = HashMap.empty[TypeNode[TypeId, NatId, DataTypeId], NotDataTypeId]
+    for ((id, sn) <- typeHashCon) {
+      val tyId = NotDataTypeId(id)
+      val node: TypeNode[TypeId, NatId, DataTypeId] = sn.node match {
+        case "fun"       => FunType(parseTypeId(sn.children(0)), parseTypeId(sn.children(1)))
+        case "natFun"    => NatFunType(parseTypeId(sn.children(0)))
+        case "dataFun"   => DataFunType(parseTypeId(sn.children(0)))
+        case "addrFun"   => AddrFunType(parseTypeId(sn.children(0)))
+        case "natNatFun" => NatToNatFunType(parseTypeId(sn.children(0)))
+        // data type nodes can also appear in the type hashcon
+        case _ => parseDataTypeNode(sn)
+      }
+      tyNodes += tyId -> node
+      tyMemo += node -> tyId
+    }
+
+    val hashConses = HashConses(
+      nats = new HashCons(natMemo, natNodes),
+      dataTypes = new HashCons(dtMemo, dtNodes),
+      types = new HashCons(tyMemo, tyNodes)
+    )
+
+    // --- Rebuild UnionFind ---
+    val uf = new UnionFind(Vec.from(unionFind.map(EClassId(_))))
+
+    // --- Parse ENodes and rebuild classes ---
+    val primitiveMap = SExprParser.parsePrimitive _
+
+    def parseENode(sn: SerENode): ENode = sn.node match {
+      case s if s.startsWith("$e") => Var(s.drop(2).toInt)
+      case "app"     => App(parseEClassId(sn.children(0)), parseEClassId(sn.children(1)))
+      case "lam"     => Lambda(parseEClassId(sn.children(0)))
+      case "natApp"  => NatApp(parseEClassId(sn.children(0)), parseNatId(sn.children(1)))
+      case "natLam"  => NatLambda(parseEClassId(sn.children(0)))
+      case "dataApp" => DataApp(parseEClassId(sn.children(0)), parseDataTypeId(sn.children(1)))
+      case "dataLam" => DataLambda(parseEClassId(sn.children(0)))
+      case "nat"     => NatLiteral(parseNatId(sn.children(0)))
+      case "idx"     => IndexLiteral(parseNatId(sn.children(0)), parseNatId(sn.children(1)))
+      case ">>"      => Composition(parseEClassId(sn.children(0)), parseEClassId(sn.children(1)))
+      case "true"    => Literal(BoolData(true))
+      case "false"   => Literal(BoolData(false))
+      case s if s.endsWith("i") && s.dropRight(1).forall(c => c.isDigit || c == '-') =>
+        Literal(IntData(s.dropRight(1).toInt))
+      case s if s.endsWith("f") && s.dropRight(1).forall(c => c.isDigit || c == '-' || c == '.') =>
+        Literal(FloatData(s.dropRight(1).toFloat))
+      case s if s.endsWith("d") && s.dropRight(1).forall(c => c.isDigit || c == '-' || c == '.') =>
+        Literal(DoubleData(s.dropRight(1).toDouble))
+      case s if s.endsWith("n") && s.dropRight(1).forall(c => c.isDigit || c == '-') =>
+        Literal(NatData(s.dropRight(1).toLong))
+      case name =>
+        primitiveMap(name) match {
+          case Some(p) => Primitive(p)
+          case None    => throw new Exception(s"Unknown ENode label: $name")
+        }
+    }
+
+    val newClasses = HashMap.empty[EClassId, EClass]
+    val newMemo = HashMap.empty[(ENode, TypeId), EClassId]
+
+    for ((id, serClass) <- classes) {
+      val eClassId = EClassId(id)
+      val typeId = parseTypeId(serClass.ty)
+      val nodes = Vec.from(serClass.nodes.map(parseENode))
+      val parents = Vec.empty[(ENode, EClassId)]
+      val eclass = new EClass(id = eClassId, t = typeId, nodes = nodes, parents = parents)
+      newClasses += eClassId -> eclass
+      // populate memo
+      for (node <- nodes) {
+        newMemo += (node, typeId) -> eClassId
+      }
+    }
+
+    // rebuild parent pointers
+    for ((eClassId, eclass) <- newClasses) {
+      for (node <- eclass.nodes) {
+        node.children().foreach { childId =>
+          val canonChild = uf.find(childId)
+          newClasses.get(canonChild).foreach { childClass =>
+            childClass.parents += ((node, eClassId))
+          }
+        }
+      }
+    }
+
+    // --- Normalize and merge immutable ids ---
+    val newImmutable = HashSet.empty[EClassId]
+    newImmutable ++= existing.immutable.map(uf.find)
+    newImmutable ++= immutableIds.map(i => uf.find(EClassId(i)))
+    val newRoots = roots.map(i => uf.find(i))
+
+    val newEGraph = new EGraph(
+      analyses = existing.analyses,
+      typeAnalyses = existing.typeAnalyses,
+      memo = newMemo,
+      classes = newClasses,
+      unionFind = uf,
+      pending = Vec.empty,
+      analysisPending = Vec.empty[PendingAnalysis],
+      classesByMatch = HashMap.empty,
+      hashConses = hashConses,
+      immutable = newImmutable,
+      clean = false
+    )
+    newEGraph.rebuild(newRoots)
+    (newEGraph, newRoots)
   }
 }
 
@@ -690,7 +870,6 @@ case class UnTypedSerTerm(
   */
 object SExprParser {
   import rise.core.{primitives => rcp}
-  import rise.core.types.{DataType => rcdt}
   import rise.core.semantics._
 
   // Use explicit names to avoid shadowing from top-level import
@@ -882,23 +1061,11 @@ object SExprParser {
       return rise.eqsat.Type(DataTypeVar(idx))
     }
 
-    // Scalar types
-    atom match {
-      case "f32"  => rise.eqsat.Type(ScalarType(rcdt.f32))
-      case "f64"  => rise.eqsat.Type(ScalarType(rcdt.f64))
-      case "f16"  => rise.eqsat.Type(ScalarType(rcdt.f16))
-      case "i8"   => rise.eqsat.Type(ScalarType(rcdt.i8))
-      case "i16"  => rise.eqsat.Type(ScalarType(rcdt.i16))
-      case "i32"  => rise.eqsat.Type(ScalarType(rcdt.i32))
-      case "i64"  => rise.eqsat.Type(ScalarType(rcdt.i64))
-      case "u8"   => rise.eqsat.Type(ScalarType(rcdt.u8))
-      case "u16"  => rise.eqsat.Type(ScalarType(rcdt.u16))
-      case "u32"  => rise.eqsat.Type(ScalarType(rcdt.u32))
-      case "u64"  => rise.eqsat.Type(ScalarType(rcdt.u64))
-      case "int"  => rise.eqsat.Type(ScalarType(rcdt.int))
-      case "bool" => rise.eqsat.Type(ScalarType(rcdt.bool))
-      case "natT" => rise.eqsat.Type(NatType)
-      case _      => throw ParseException(s"Unknown type atom: $atom")
+    if (atom == "natT") return rise.eqsat.Type(NatType)
+
+    ScalarTypes.parse(atom) match {
+      case Some(s) => rise.eqsat.Type(ScalarType(s))
+      case None    => throw ParseException(s"Unknown type atom: $atom")
     }
   }
 
@@ -923,23 +1090,11 @@ object SExprParser {
       return EqsatDataType(DataTypeVar(idx))
     }
 
-    // Scalar types
-    atom match {
-      case "f32"  => EqsatDataType(ScalarType(rcdt.f32))
-      case "f64"  => EqsatDataType(ScalarType(rcdt.f64))
-      case "f16"  => EqsatDataType(ScalarType(rcdt.f16))
-      case "i8"   => EqsatDataType(ScalarType(rcdt.i8))
-      case "i16"  => EqsatDataType(ScalarType(rcdt.i16))
-      case "i32"  => EqsatDataType(ScalarType(rcdt.i32))
-      case "i64"  => EqsatDataType(ScalarType(rcdt.i64))
-      case "u8"   => EqsatDataType(ScalarType(rcdt.u8))
-      case "u16"  => EqsatDataType(ScalarType(rcdt.u16))
-      case "u32"  => EqsatDataType(ScalarType(rcdt.u32))
-      case "u64"  => EqsatDataType(ScalarType(rcdt.u64))
-      case "int"  => EqsatDataType(ScalarType(rcdt.int))
-      case "bool" => EqsatDataType(ScalarType(rcdt.bool))
-      case "natT" => EqsatDataType(NatType)
-      case _      => throw ParseException(s"Unknown data type atom: $atom")
+    if (atom == "natT") return EqsatDataType(NatType)
+
+    ScalarTypes.parse(atom) match {
+      case Some(s) => EqsatDataType(ScalarType(s))
+      case None    => throw ParseException(s"Unknown data type atom: $atom")
     }
   }
 
@@ -1003,7 +1158,7 @@ object SExprParser {
     }
   }
 
-  private def parsePrimitive(name: String): Option[rise.core.Primitive] = {
+  def parsePrimitive(name: String): Option[rise.core.Primitive] = {
     // Map of primitive names to their builders
     val primitives: Map[String, rise.core.Primitive] = Map(
       "map" -> rcp.map.primitive,
