@@ -513,27 +513,7 @@ case class SerEGraph(
 
     assert(existing.clean, "toEGraph requires a clean EGraph")
 
-    // --- Parse ID strings back ---
-    def parseEClassId(s: String): EClassId = {
-      val i = s.stripPrefix("EClassId(").stripSuffix(")").toInt
-      EClassId(i)
-    }
-    def parseNatId(s: String): NatId = {
-      val i = s.stripPrefix("NatId(").stripSuffix(")").toInt
-      NatId(i)
-    }
-    def parseDataTypeId(s: String): DataTypeId = {
-      val i = s.stripPrefix("DataTypeId(").stripSuffix(")").toInt
-      DataTypeId(i)
-    }
-    def parseNotDataTypeId(s: String): NotDataTypeId = {
-      val i = s.stripPrefix("NotDataTypeId(").stripSuffix(")").toInt
-      NotDataTypeId(i)
-    }
-    def parseTypeId(s: String): TypeId = {
-      if (s.startsWith("DataTypeId")) parseDataTypeId(s)
-      else parseNotDataTypeId(s)
-    }
+    import SerId.{parseEClassId, parseNatId, parseDataTypeId, parseNotDataTypeId, parseTypeId}
 
     def parseDataTypeNode(sn: SerENode): DataTypeNode[NatId, DataTypeId] = sn.node match {
       case s if s.startsWith("$d") => DataTypeVar(s.drop(2).toInt)
@@ -554,7 +534,7 @@ case class SerEGraph(
     val natMemo = HashMap.empty[NatNode[NatId], NatId]
     for ((id, sn) <- natHashCon) {
       val natId = NatId(id)
-      val node: NatNode[NatId] = sn.node match {
+      val node = sn.node match {
         case s if s.startsWith("$n") => NatVar(s.drop(2).toInt)
         case s if s.endsWith("n")    => NatCst(s.dropRight(1).toLong)
         case "natAdd"      => NatAdd(parseNatId(sn.children(0)), parseNatId(sn.children(1)))
@@ -581,7 +561,7 @@ case class SerEGraph(
     val tyMemo = HashMap.empty[TypeNode[TypeId, NatId, DataTypeId], NotDataTypeId]
     for ((id, sn) <- typeHashCon) {
       val tyId = NotDataTypeId(id)
-      val node: TypeNode[TypeId, NatId, DataTypeId] = sn.node match {
+      val node = sn.node match {
         case "fun"       => FunType(parseTypeId(sn.children(0)), parseTypeId(sn.children(1)))
         case "natFun"    => NatFunType(parseTypeId(sn.children(0)))
         case "dataFun"   => DataFunType(parseTypeId(sn.children(0)))
@@ -740,45 +720,81 @@ object SerId {
   def p(id: NatId): String = s"$id"
   def p(id: EClassId): String = s"$id"
   def p(id: Address): String = s"$id"
+
+  def parseEClassId(s: String): EClassId = {
+    val i = s.stripPrefix("EClassId(").stripSuffix(")").toInt
+    EClassId(i)
+  }
+  def parseNatId(s: String): NatId = {
+    val i = s.stripPrefix("NatId(").stripSuffix(")").toInt
+    NatId(i)
+  }
+  def parseDataTypeId(s: String): DataTypeId = {
+    val i = s.stripPrefix("DataTypeId(").stripSuffix(")").toInt
+    DataTypeId(i)
+  }
+  def parseNotDataTypeId(s: String): NotDataTypeId = {
+    val i = s.stripPrefix("NotDataTypeId(").stripSuffix(")").toInt
+    NotDataTypeId(i)
+  }
+  def parseTypeId(s: String): TypeId = {
+    if (s.startsWith("DataTypeId")) parseDataTypeId(s)
+    else parseNotDataTypeId(s)
+  }
 }
 
-object SerializedTerm {
+sealed trait SerializedTerm
 
-  // def dump()
-
+object TypedSerTerm {
   def parse(pat: Expr): TypedSerTerm = pat.node match {
-    case Var(index)        => TypedSerTerm(s"$$e${index}", parse(pat.t), Seq.empty)
-    case App(f, e)         => TypedSerTerm("app", parse(pat.t), Seq(parse(f), parse(e)))
-    case NatApp(f, x)      => TypedSerTerm("natApp", parse(pat.t), Seq(parse(f), parse(x)))
-    case DataApp(f, x)     => TypedSerTerm("dataApp", parse(pat.t), Seq(parse(f), parse(x)))
-    case AddrApp(f, x)     => TypedSerTerm("addrApp", parse(pat.t), Seq(parse(f), parse(x)))
+    case Var(index) => TypedSerTerm(s"$$e${index}", UnTypedSerTerm.parse(pat.t), Seq.empty)
+    case App(f, e)  => TypedSerTerm("app", UnTypedSerTerm.parse(pat.t), Seq(parse(f), parse(e)))
+    case NatApp(f, x) =>
+      TypedSerTerm("natApp", UnTypedSerTerm.parse(pat.t), Seq(parse(f), UnTypedSerTerm.parse(x)))
+    case DataApp(f, x) =>
+      TypedSerTerm("dataApp", UnTypedSerTerm.parse(pat.t), Seq(parse(f), UnTypedSerTerm.parse(x)))
+    case AddrApp(f, x) =>
+      TypedSerTerm("addrApp", UnTypedSerTerm.parse(pat.t), Seq(parse(f), UnTypedSerTerm.parse(x)))
     case AppNatToNat(f, x) => ???
-    case Lambda(e)         => TypedSerTerm("lam", parse(pat.t), Seq(parse(e)))
-    case NatLambda(e)      => TypedSerTerm("natLam", parse(pat.t), Seq(parse(e)))
-    case DataLambda(e)     => TypedSerTerm("dataLam", parse(pat.t), Seq(parse(e)))
-    case AddrLambda(e)     => TypedSerTerm("addrLam", parse(pat.t), Seq(parse(e)))
-    case LambdaNatToNat(e) => TypedSerTerm("natNatLam", parse(pat.t), Seq(parse(e)))
+    case Lambda(e)         => TypedSerTerm("lam", UnTypedSerTerm.parse(pat.t), Seq(parse(e)))
+    case NatLambda(e)      => TypedSerTerm("natLam", UnTypedSerTerm.parse(pat.t), Seq(parse(e)))
+    case DataLambda(e)     => TypedSerTerm("dataLam", UnTypedSerTerm.parse(pat.t), Seq(parse(e)))
+    case AddrLambda(e)     => TypedSerTerm("addrLam", UnTypedSerTerm.parse(pat.t), Seq(parse(e)))
+    case LambdaNatToNat(e) => TypedSerTerm("natNatLam", UnTypedSerTerm.parse(pat.t), Seq(parse(e)))
     case Literal(d) =>
       import rise.core.semantics._
 
       d match {
-        case BoolData(true)  => TypedSerTerm("true", parse(pat.t), Seq.empty)
-        case BoolData(false) => TypedSerTerm("false", parse(pat.t), Seq.empty)
+        case BoolData(true)  => TypedSerTerm("true", UnTypedSerTerm.parse(pat.t), Seq.empty)
+        case BoolData(false) => TypedSerTerm("false", UnTypedSerTerm.parse(pat.t), Seq.empty)
         case IntData(value) =>
-          TypedSerTerm(s"${value}i", parse(pat.t), Seq.empty) // s"Integer($value)"
+          TypedSerTerm(s"${value}i", UnTypedSerTerm.parse(pat.t), Seq.empty) // s"Integer($value)"
         case FloatData(value) =>
-          TypedSerTerm(s"${value}f", parse(pat.t), Seq.empty) // s"Float($value)"
+          TypedSerTerm(s"${value}f", UnTypedSerTerm.parse(pat.t), Seq.empty) // s"Float($value)"
         case DoubleData(value) =>
-          TypedSerTerm(s"${value}d", parse(pat.t), Seq.empty) // s"Double($value)"
+          TypedSerTerm(s"${value}d", UnTypedSerTerm.parse(pat.t), Seq.empty) // s"Double($value)"
         case _ => throw new Exception(s"not supporting literal $d yet")
       }
-    case NatLiteral(n)      => TypedSerTerm(n.toString(), parse(pat.t), Seq.empty)
-    case IndexLiteral(i, n) => TypedSerTerm("idxL", parse(pat.t), Seq(parse(i), parse(n)))
-    case Primitive(p)       => TypedSerTerm(p.name, parse(pat.t), Seq.empty)
-    case Composition(f, g)  => ???
+    case NatLiteral(n) => TypedSerTerm(n.toString(), UnTypedSerTerm.parse(pat.t), Seq.empty)
+    case IndexLiteral(i, n) =>
+      TypedSerTerm(
+        "idxL",
+        UnTypedSerTerm.parse(pat.t),
+        Seq(UnTypedSerTerm.parse(i), UnTypedSerTerm.parse(n))
+      )
+    case Primitive(p)      => TypedSerTerm(p.name, UnTypedSerTerm.parse(pat.t), Seq.empty)
+    case Composition(f, g) => ???
 
   }
+}
 
+case class TypedSerTerm(
+    node: String,
+    ty: UnTypedSerTerm,
+    children: Seq[SerializedTerm]
+) extends SerializedTerm
+
+object UnTypedSerTerm {
   def parse(ty: Type): UnTypedSerTerm = ty.node match {
     case dt: DataTypeNode[_, _] =>
       parse(rise.eqsat.DataType(dt))
@@ -787,14 +803,9 @@ object SerializedTerm {
     case DataFunType(t)     => UnTypedSerTerm("dataFun", Seq(parse(t)))
     case AddrFunType(t)     => UnTypedSerTerm("addrFun", Seq(parse(t)))
     case NatToNatFunType(t) => UnTypedSerTerm("natNatFun", Seq(parse(t)))
-
   }
 
   def parse(n: Nat): UnTypedSerTerm = n.node match {
-    // case NatPatternVar(index) => parse(s"?n${index}")
-    // case NatPatternAny        => parse(s"?nAny")
-    // case NatPatternNode(n) =>
-    //   n match {
     case NatVar(index)     => UnTypedSerTerm(s"$$n${index}", Seq.empty)
     case NatCst(value)     => UnTypedSerTerm(s"${value}n", Seq.empty)
     case NatNegInf         => ???
@@ -805,7 +816,6 @@ object SerializedTerm {
     case NatMod(a, b)      => UnTypedSerTerm("natMod", Seq(parse(a), parse(b)))
     case NatIntDiv(a, b)   => UnTypedSerTerm("natFloorDiv", Seq(parse(a), parse(b)))
     case NatToNatApp(f, n) => ???
-    // }
   }
 
   def parse(dty: rise.eqsat.DataType): UnTypedSerTerm = dty.node match {
@@ -829,18 +839,10 @@ object SerializedTerm {
   }
 }
 
-sealed trait SerializedTerm
-
-case class TypedSerTerm(
-    node: String,
-    ty: UnTypedSerTerm,
-    children: Seq[SerializedTerm]
-) extends SerializedTerm
-
 case class UnTypedSerTerm(
     node: String,
     children: Seq[UnTypedSerTerm]
-) extends SerializedTerm {}
+) extends SerializedTerm
 
 /** Parser for S-expressions representing Rise expressions.
   *
